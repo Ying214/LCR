@@ -1,0 +1,8 @@
+paddleocr
+fastapi
+uvicorn
+python-multipart
+opencv-python-headless
+pillow
+
+PyYAML==6.0.2

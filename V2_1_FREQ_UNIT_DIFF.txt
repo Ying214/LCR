@@ -1,0 +1,1178 @@
+
+diff --git a/src/lib/types.ts b/src/lib/types.ts
+new file mode 100644
+index 0000000..40d5056
+--- /dev/null
++++ b/src/lib/types.ts
+@@ -0,0 +1,91 @@
++export type ParameterKey = "rp" | "cp" | "rs" | "cs";
++
++export type BaselineStatus = "正常" | "注意" | "異常" | "未設定";
++
++export type ResistanceUnit = "ohm" | "kohm" | "mohm";
++
++export type CapacitanceUnit = "f" | "mf" | "uf" | "nf" | "pf";
++
++export type FrequencyUnit = "hz" | "khz";
++
++export type ParameterValues = {
++  rp: number;
++  cp: number;
++  rs: number;
++  cs: number;
++};
++
++export type BaselineProfile = {
++  id: string;
++  name: string;
++  conditionLabel: string | null;
++  freqHz: number | null;
++  level: number | null;
++  rp: number | null;
++  cp: number | null;
++  rs: number | null;
++  cs: number | null;
++  note: string | null;
++  createdAt: string;
++  updatedAt: string;
++};
++
++export type MeasurementDataset = {
++  id: string;
++  datasetName: string;
++  conditionLabel: string;
++  note: string | null;
++  baselineId: string | null;
++  createdAt: string;
++  updatedAt: string;
++};
++
++export type MeasurementRecord = {
++  id: string;
++  datasetId: string;
++  indexNo: number;
++  freqHz: number;
++  level: number;
++  rp: number;
++  cp: number;
++  rs: number;
++  cs: number;
++  createdAt: string;
++};
++
++export type MeasurementDatasetWithRelations = MeasurementDataset & {
++  baseline: BaselineProfile | null;
++  records: MeasurementRecord[];
++};
++
++export type MeasurementFilter = {
++  datasetName: string;
++  conditionLabel: string;
++  freqHz: string;
++  level: string;
++  baselineId: string;
++};
++
++export type MeasurementUnitFields = {
++  freqUnit: FrequencyUnit;
++  rpUnit: ResistanceUnit;
++  cpUnit: CapacitanceUnit;
++  rsUnit: ResistanceUnit;
++  csUnit: CapacitanceUnit;
++};
++
++export type ComparisonMode = "average" | "median";
++
++export type BaselineComparisonRow = {
++  parameter: ParameterKey;
++  baselineValue: number | null;
++  measurementValues: number[];
++  averageValue: number | null;
++  deviationPercent: number | null;
++};
++
++export type MeasurementFilterOptions = {
++  conditionLabels: string[];
++  frequencies: number[];
++  levels: number[];
++};
+
+
+diff --git a/src/lib/unit-conversion.ts b/src/lib/unit-conversion.ts
+new file mode 100644
+index 0000000..27f6e4e
+--- /dev/null
++++ b/src/lib/unit-conversion.ts
+@@ -0,0 +1,100 @@
++import type { CapacitanceUnit, FrequencyUnit, ResistanceUnit } from "@/lib/types";
++import { formatNumber } from "@/lib/formatters";
++
++export const RESISTANCE_UNIT_FACTORS: Record<ResistanceUnit, number> = {
++  ohm: 1,
++  kohm: 1e3,
++  mohm: 1e6,
++};
++
++export const CAPACITANCE_UNIT_FACTORS: Record<CapacitanceUnit, number> = {
++  f: 1,
++  mf: 1e-3,
++  uf: 1e-6,
++  nf: 1e-9,
++  pf: 1e-12,
++};
++
++export const FREQUENCY_UNIT_FACTORS: Record<FrequencyUnit, number> = {
++  hz: 1,
++  khz: 1e3,
++};
++
++export const RESISTANCE_UNIT_OPTIONS: Array<{ value: ResistanceUnit; label: string }> = [
++  { value: "ohm", label: "Ω" },
++  { value: "kohm", label: "kΩ" },
++  { value: "mohm", label: "MΩ" },
++];
++
++export const CAPACITANCE_UNIT_OPTIONS: Array<{ value: CapacitanceUnit; label: string }> = [
++  { value: "f", label: "F" },
++  { value: "mf", label: "mF" },
++  { value: "uf", label: "uF" },
++  { value: "nf", label: "nF" },
++  { value: "pf", label: "pF" },
++];
++
++export const FREQUENCY_UNIT_OPTIONS: Array<{ value: FrequencyUnit; label: string }> = [
++  { value: "hz", label: "Hz" },
++  { value: "khz", label: "kHz" },
++];
++
++export function resistanceToOhm(value: number, unit: ResistanceUnit): number {
++  return value * RESISTANCE_UNIT_FACTORS[unit];
++}
++
++export function capacitanceToFarad(value: number, unit: CapacitanceUnit): number {
++  return value * CAPACITANCE_UNIT_FACTORS[unit];
++}
++
++export function frequencyToHz(value: number, unit: FrequencyUnit): number {
++  return value * FREQUENCY_UNIT_FACTORS[unit];
++}
++
++export function formatResistance(valueInOhm: number | null | undefined): string {
++  if (valueInOhm === null || valueInOhm === undefined || Number.isNaN(valueInOhm)) {
++    return "--";
++  }
++
++  const absolute = Math.abs(valueInOhm);
++  if (absolute >= RESISTANCE_UNIT_FACTORS.mohm) {
++    return `${formatNumber(valueInOhm / RESISTANCE_UNIT_FACTORS.mohm, 6)} MΩ`;
++  }
++  if (absolute >= RESISTANCE_UNIT_FACTORS.kohm) {
++    return `${formatNumber(valueInOhm / RESISTANCE_UNIT_FACTORS.kohm, 6)} kΩ`;
++  }
++  return `${formatNumber(valueInOhm, 6)} Ω`;
++}
++
++export function formatCapacitance(valueInFarad: number | null | undefined): string {
++  if (valueInFarad === null || valueInFarad === undefined || Number.isNaN(valueInFarad)) {
++    return "--";
++  }
++
++  const absolute = Math.abs(valueInFarad);
++  if (absolute >= CAPACITANCE_UNIT_FACTORS.f) {
++    return `${formatNumber(valueInFarad, 6)} F`;
++  }
++  if (absolute >= CAPACITANCE_UNIT_FACTORS.mf) {
++    return `${formatNumber(valueInFarad / CAPACITANCE_UNIT_FACTORS.mf, 6)} mF`;
++  }
++  if (absolute >= CAPACITANCE_UNIT_FACTORS.uf) {
++    return `${formatNumber(valueInFarad / CAPACITANCE_UNIT_FACTORS.uf, 6)} uF`;
++  }
++  if (absolute >= CAPACITANCE_UNIT_FACTORS.nf) {
++    return `${formatNumber(valueInFarad / CAPACITANCE_UNIT_FACTORS.nf, 6)} nF`;
++  }
++  return `${formatNumber(valueInFarad / CAPACITANCE_UNIT_FACTORS.pf, 6)} pF`;
++}
++
++export function formatFrequencyWithUnit(valueInHz: number | null | undefined): string {
++  if (valueInHz === null || valueInHz === undefined || Number.isNaN(valueInHz)) {
++    return "--";
++  }
++
++  const absolute = Math.abs(valueInHz);
++  if (absolute >= FREQUENCY_UNIT_FACTORS.khz) {
++    return `${formatNumber(valueInHz / FREQUENCY_UNIT_FACTORS.khz, 3)} kHz`;
++  }
++  return `${formatNumber(valueInHz, 3)} Hz`;
++}
+
+
+diff --git a/src/components/measurements/MeasurementManualTable.tsx b/src/components/measurements/MeasurementManualTable.tsx
+new file mode 100644
+index 0000000..c1e7b86
+--- /dev/null
++++ b/src/components/measurements/MeasurementManualTable.tsx
+@@ -0,0 +1,326 @@
++"use client";
++
++import { useMemo, useState } from "react";
++
++import { calculateAverages } from "@/lib/calculations";
++import type { MeasurementUnitFields } from "@/lib/types";
++import {
++  CAPACITANCE_UNIT_OPTIONS,
++  FREQUENCY_UNIT_OPTIONS,
++  RESISTANCE_UNIT_OPTIONS,
++  capacitanceToFarad,
++  formatCapacitance,
++  formatResistance,
++  resistanceToOhm,
++} from "@/lib/unit-conversion";
++
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
++import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
++
++export type ManualMeasurementRow = {
++  rowId: string;
++  indexNo: number;
++  freqHz: number;
++  level: number;
++  rp: number;
++  cp: number;
++  rs: number;
++  cs: number;
++} & MeasurementUnitFields;
++
++type MeasurementManualTableProps = {
++  rows: ManualMeasurementRow[];
++  onRowsChange: (rows: ManualMeasurementRow[]) => void;
++};
++
++type NumericField = "indexNo" | "freqHz" | "level" | "rp" | "cp" | "rs" | "cs";
++
++function createEmptyRow(indexNo: number): ManualMeasurementRow {
++  return {
++    rowId: `row-${Date.now()}-${Math.random()}`,
++    indexNo,
++    freqHz: 10,
++    level: 2,
++    rp: 0,
++    cp: 0,
++    rs: 0,
++    cs: 0,
++    freqUnit: "khz",
++    rpUnit: "ohm",
++    cpUnit: "nf",
++    rsUnit: "ohm",
++    csUnit: "nf",
++  };
++}
++
++export function MeasurementManualTable({ rows, onRowsChange }: MeasurementManualTableProps) {
++  const [selectedRowId, setSelectedRowId] = useState<string | null>(rows[0]?.rowId ?? null);
++  const [showAverage, setShowAverage] = useState(false);
++
++  const averageValues = useMemo(() => {
++    const normalizedRows = rows.map((row) => ({
++      rp: resistanceToOhm(row.rp, row.rpUnit),
++      cp: capacitanceToFarad(row.cp, row.cpUnit),
++      rs: resistanceToOhm(row.rs, row.rsUnit),
++      cs: capacitanceToFarad(row.cs, row.csUnit),
++    }));
++    return calculateAverages(normalizedRows);
++  }, [rows]);
++
++  const updateNumericCell = (rowId: string, field: NumericField, value: string) => {
++    const parsed = Number(value);
++    const safeValue = Number.isFinite(parsed) ? parsed : 0;
++    onRowsChange(rows.map((row) => (row.rowId === rowId ? { ...row, [field]: safeValue } : row)));
++  };
++
++  const updateUnitCell = (
++    rowId: string,
++    field: "freqUnit" | "rpUnit" | "cpUnit" | "rsUnit" | "csUnit",
++    value: string,
++  ) => {
++    onRowsChange(
++      rows.map((row) =>
++        row.rowId === rowId
++          ? { ...row, [field]: value as ManualMeasurementRow[typeof field] }
++          : row,
++      ),
++    );
++  };
++
++  const addRow = () => {
++    const nextIndex = rows.length > 0 ? Math.max(...rows.map((row) => row.indexNo)) + 1 : 1;
++    const nextRow = createEmptyRow(nextIndex);
++    onRowsChange([...rows, nextRow]);
++    setSelectedRowId(nextRow.rowId);
++  };
++
++  const removeRow = () => {
++    if (!selectedRowId) {
++      return;
++    }
++    const nextRows = rows.filter((row) => row.rowId !== selectedRowId);
++    if (nextRows.length === 0) {
++      const fallback = createEmptyRow(1);
++      onRowsChange([fallback]);
++      setSelectedRowId(fallback.rowId);
++      return;
++    }
++    onRowsChange(nextRows);
++    setSelectedRowId(nextRows[0].rowId);
++  };
++
++  return (
++    <div className="space-y-4">
++      <div className="rounded-md border border-slate-200">
++        <Table>
++          <TableHeader>
++            <TableRow>
++              <TableHead className="w-14 text-center">選取</TableHead>
++              <TableHead>筆數</TableHead>
++              <TableHead>FREQ(Hz)</TableHead>
++              <TableHead>LEVEL</TableHead>
++              <TableHead>Rp</TableHead>
++              <TableHead>Cp</TableHead>
++              <TableHead>Rs</TableHead>
++              <TableHead>Cs</TableHead>
++            </TableRow>
++          </TableHeader>
++          <TableBody>
++            {rows.map((row) => (
++              <TableRow key={row.rowId} className={selectedRowId === row.rowId ? "bg-slate-100/70" : undefined}>
++                <TableCell className="text-center">
++                  <input
++                    type="radio"
++                    name="row-select"
++                    checked={selectedRowId === row.rowId}
++                    onChange={() => setSelectedRowId(row.rowId)}
++                  />
++                </TableCell>
++                <TableCell>
++                  <Input
++                    type="number"
++                    step="1"
++                    className="h-8 font-mono"
++                    value={row.indexNo}
++                    onChange={(event) => updateNumericCell(row.rowId, "indexNo", event.target.value)}
++                  />
++                </TableCell>
++                <TableCell>
++                  <div className="grid grid-cols-[1fr_92px] gap-2">
++                    <Input
++                      type="number"
++                      step="0.01"
++                      className="h-8 font-mono"
++                      value={row.freqHz}
++                      onChange={(event) => updateNumericCell(row.rowId, "freqHz", event.target.value)}
++                    />
++                    <Select
++                      value={row.freqUnit}
++                      onValueChange={(value) => updateUnitCell(row.rowId, "freqUnit", value)}
++                    >
++                      <SelectTrigger className="h-8">
++                        <SelectValue />
++                      </SelectTrigger>
++                      <SelectContent>
++                        {FREQUENCY_UNIT_OPTIONS.map((option) => (
++                          <SelectItem key={option.value} value={option.value}>
++                            {option.label}
++                          </SelectItem>
++                        ))}
++                      </SelectContent>
++                    </Select>
++                  </div>
++                </TableCell>
++                <TableCell>
++                  <Input
++                    type="number"
++                    step="0.01"
++                    className="h-8 font-mono"
++                    value={row.level}
++                    onChange={(event) => updateNumericCell(row.rowId, "level", event.target.value)}
++                  />
++                </TableCell>
++                <TableCell>
++                  <div className="grid grid-cols-[1fr_92px] gap-2">
++                    <Input
++                      type="number"
++                      step="0.01"
++                      className="h-8 font-mono"
++                      value={row.rp}
++                      onChange={(event) => updateNumericCell(row.rowId, "rp", event.target.value)}
++                    />
++                    <Select
++                      value={row.rpUnit}
++                      onValueChange={(value) => updateUnitCell(row.rowId, "rpUnit", value)}
++                    >
++                      <SelectTrigger className="h-8">
++                        <SelectValue />
++                      </SelectTrigger>
++                      <SelectContent>
++                        {RESISTANCE_UNIT_OPTIONS.map((option) => (
++                          <SelectItem key={option.value} value={option.value}>
++                            {option.label}
++                          </SelectItem>
++                        ))}
++                      </SelectContent>
++                    </Select>
++                  </div>
++                </TableCell>
++                <TableCell>
++                  <div className="grid grid-cols-[1fr_92px] gap-2">
++                    <Input
++                      type="number"
++                      step="0.01"
++                      className="h-8 font-mono"
++                      value={row.cp}
++                      onChange={(event) => updateNumericCell(row.rowId, "cp", event.target.value)}
++                    />
++                    <Select
++                      value={row.cpUnit}
++                      onValueChange={(value) => updateUnitCell(row.rowId, "cpUnit", value)}
++                    >
++                      <SelectTrigger className="h-8">
++                        <SelectValue />
++                      </SelectTrigger>
++                      <SelectContent>
++                        {CAPACITANCE_UNIT_OPTIONS.map((option) => (
++                          <SelectItem key={option.value} value={option.value}>
++                            {option.label}
++                          </SelectItem>
++                        ))}
++                      </SelectContent>
++                    </Select>
++                  </div>
++                </TableCell>
++                <TableCell>
++                  <div className="grid grid-cols-[1fr_92px] gap-2">
++                    <Input
++                      type="number"
++                      step="0.01"
++                      className="h-8 font-mono"
++                      value={row.rs}
++                      onChange={(event) => updateNumericCell(row.rowId, "rs", event.target.value)}
++                    />
++                    <Select
++                      value={row.rsUnit}
++                      onValueChange={(value) => updateUnitCell(row.rowId, "rsUnit", value)}
++                    >
++                      <SelectTrigger className="h-8">
++                        <SelectValue />
++                      </SelectTrigger>
++                      <SelectContent>
++                        {RESISTANCE_UNIT_OPTIONS.map((option) => (
++                          <SelectItem key={option.value} value={option.value}>
++                            {option.label}
++                          </SelectItem>
++                        ))}
++                      </SelectContent>
++                    </Select>
++                  </div>
++                </TableCell>
++                <TableCell>
++                  <div className="grid grid-cols-[1fr_92px] gap-2">
++                    <Input
++                      type="number"
++                      step="0.01"
++                      className="h-8 font-mono"
++                      value={row.cs}
++                      onChange={(event) => updateNumericCell(row.rowId, "cs", event.target.value)}
++                    />
++                    <Select
++                      value={row.csUnit}
++                      onValueChange={(value) => updateUnitCell(row.rowId, "csUnit", value)}
++                    >
++                      <SelectTrigger className="h-8">
++                        <SelectValue />
++                      </SelectTrigger>
++                      <SelectContent>
++                        {CAPACITANCE_UNIT_OPTIONS.map((option) => (
++                          <SelectItem key={option.value} value={option.value}>
++                            {option.label}
++                          </SelectItem>
++                        ))}
++                      </SelectContent>
++                    </Select>
++                  </div>
++                </TableCell>
++              </TableRow>
++            ))}
++          </TableBody>
++        </Table>
++      </div>
++
++      <div className="flex flex-wrap gap-2">
++        <Button type="button" variant="secondary" onClick={addRow}>
++          新增一列
++        </Button>
++        <Button type="button" variant="secondary" onClick={removeRow} disabled={!selectedRowId}>
++          刪除一列
++        </Button>
++        <Button type="button" variant="outline" onClick={() => setShowAverage(true)}>
++          計算平均
++        </Button>
++      </div>
++
++      {showAverage ? (
++        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
++          <p className="mb-2 font-medium text-slate-700">
++            平均值（前端即時計算，已轉換為標準單位：Ω / F）
++          </p>
++          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
++            <p className="font-mono">Rp: {formatResistance(averageValues.rp)}</p>
++            <p className="font-mono">Cp: {formatCapacitance(averageValues.cp)}</p>
++            <p className="font-mono">Rs: {formatResistance(averageValues.rs)}</p>
++            <p className="font-mono">Cs: {formatCapacitance(averageValues.cs)}</p>
++          </div>
++        </div>
++      ) : null}
++    </div>
++  );
++}
++
++export function createInitialManualRows(): ManualMeasurementRow[] {
++  return [createEmptyRow(1), createEmptyRow(2), createEmptyRow(3)];
++}
+
+
+diff --git a/src/components/measurements/MeasurementForm.tsx b/src/components/measurements/MeasurementForm.tsx
+new file mode 100644
+index 0000000..bb120e4
+--- /dev/null
++++ b/src/components/measurements/MeasurementForm.tsx
+@@ -0,0 +1,120 @@
++"use client";
++
++import { useCallback, useEffect, useState } from "react";
++
++import type { BaselineListResponse, CreateMeasurementDatasetPayload } from "@/lib/api-types";
++import type { BaselineProfile } from "@/lib/types";
++import { capacitanceToFarad, frequencyToHz, resistanceToOhm } from "@/lib/unit-conversion";
++
++import { SectionCard } from "@/components/layout/SectionCard";
++import {
++  type MeasurementBasicInfo,
++  MeasurementBasicInfoForm,
++} from "@/components/measurements/MeasurementBasicInfoForm";
++import { MeasurementImportPanel } from "@/components/measurements/MeasurementImportPanel";
++import {
++  createInitialManualRows,
++  type ManualMeasurementRow,
++  MeasurementManualTable,
++} from "@/components/measurements/MeasurementManualTable";
++import { MeasurementSaveActions } from "@/components/measurements/MeasurementSaveActions";
++
++const initialBasicInfo: MeasurementBasicInfo = {
++  datasetName: "",
++  conditionLabel: "",
++  note: "",
++  baselineId: "",
++};
++
++export function MeasurementForm() {
++  const [basicInfo, setBasicInfo] = useState<MeasurementBasicInfo>(initialBasicInfo);
++  const [rows, setRows] = useState<ManualMeasurementRow[]>(createInitialManualRows());
++  const [baselines, setBaselines] = useState<BaselineProfile[]>([]);
++  const [isSaving, setIsSaving] = useState(false);
++
++  const loadBaselines = useCallback(async () => {
++    const response = await fetch("/api/baselines");
++    if (!response.ok) {
++      return;
++    }
++    const json = (await response.json()) as BaselineListResponse;
++    setBaselines(json.data);
++  }, []);
++
++  useEffect(() => {
++    void loadBaselines();
++  }, [loadBaselines]);
++
++  const saveManualInput = async () => {
++    // TODO: 下輪改為 toast 提示，取代 alert。
++    if (!basicInfo.datasetName.trim()) {
++      alert("請輸入資料名稱。");
++      return;
++    }
++    if (!basicInfo.conditionLabel.trim()) {
++      alert("請輸入製程條件。");
++      return;
++    }
++
++    const indexSet = new Set<number>();
++    for (const row of rows) {
++      if (indexSet.has(row.indexNo)) {
++        alert("同一組資料內，筆數不可重複。");
++        return;
++      }
++      indexSet.add(row.indexNo);
++    }
++
++    const payload: CreateMeasurementDatasetPayload = {
++      datasetName: basicInfo.datasetName.trim(),
++      conditionLabel: basicInfo.conditionLabel.trim(),
++      note: basicInfo.note.trim() || undefined,
++      baselineId: basicInfo.baselineId || null,
++      records: rows.map((row) => ({
++        indexNo: row.indexNo,
++        freqHz: frequencyToHz(row.freqHz, row.freqUnit),
++        level: row.level,
++        rp: resistanceToOhm(row.rp, row.rpUnit),
++        cp: capacitanceToFarad(row.cp, row.cpUnit),
++        rs: resistanceToOhm(row.rs, row.rsUnit),
++        cs: capacitanceToFarad(row.cs, row.csUnit),
++      })),
++    };
++
++    setIsSaving(true);
++    try {
++      const response = await fetch("/api/measurements", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify(payload),
++      });
++
++      if (!response.ok) {
++        const error = (await response.json()) as { message?: string };
++        alert(error.message ?? "儲存失敗。");
++        return;
++      }
++
++      alert("量測資料儲存成功。");
++    } finally {
++      setIsSaving(false);
++    }
++  };
++
++  return (
++    <>
++      <SectionCard title="基本資訊">
++        <MeasurementBasicInfoForm value={basicInfo} baselines={baselines} onChange={setBasicInfo} />
++      </SectionCard>
++
++      <SectionCard title="手動輸入量測資料">
++        <MeasurementManualTable rows={rows} onRowsChange={setRows} />
++        <MeasurementSaveActions onSave={saveManualInput} isSaving={isSaving} />
++      </SectionCard>
++
++      <SectionCard title="檔案匯入（未開放）">
++        <MeasurementImportPanel />
++      </SectionCard>
++    </>
++  );
++}
+
+
+diff --git a/src/components/baselines/BaselineForm.tsx b/src/components/baselines/BaselineForm.tsx
+new file mode 100644
+index 0000000..5310315
+--- /dev/null
++++ b/src/components/baselines/BaselineForm.tsx
+@@ -0,0 +1,266 @@
++"use client";
++
++import { useState } from "react";
++
++import type { CreateBaselinePayload } from "@/lib/api-types";
++import type { CapacitanceUnit, FrequencyUnit, ResistanceUnit } from "@/lib/types";
++import {
++  CAPACITANCE_UNIT_OPTIONS,
++  FREQUENCY_UNIT_OPTIONS,
++  RESISTANCE_UNIT_OPTIONS,
++  capacitanceToFarad,
++  frequencyToHz,
++  resistanceToOhm,
++} from "@/lib/unit-conversion";
++
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { Label } from "@/components/ui/label";
++import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
++import { Textarea } from "@/components/ui/textarea";
++
++export type BaselineFormValue = {
++  name: string;
++  conditionLabel: string;
++  freqHz: string;
++  freqUnit: FrequencyUnit;
++  level: string;
++  rp: string;
++  rpUnit: ResistanceUnit;
++  cp: string;
++  cpUnit: CapacitanceUnit;
++  rs: string;
++  rsUnit: ResistanceUnit;
++  cs: string;
++  csUnit: CapacitanceUnit;
++  note: string;
++};
++
++type BaselineFormProps = {
++  initialValue?: BaselineFormValue;
++  submitLabel: string;
++  onSubmit: (payload: CreateBaselinePayload) => Promise<void>;
++};
++
++const defaultValue: BaselineFormValue = {
++  name: "",
++  conditionLabel: "",
++  freqHz: "",
++  freqUnit: "khz",
++  level: "",
++  rp: "",
++  rpUnit: "ohm",
++  cp: "",
++  cpUnit: "f",
++  rs: "",
++  rsUnit: "ohm",
++  cs: "",
++  csUnit: "f",
++  note: "",
++};
++
++function toOptionalNumber(value: string): number | undefined {
++  if (!value.trim()) {
++    return undefined;
++  }
++  const parsed = Number(value);
++  return Number.isFinite(parsed) ? parsed : undefined;
++}
++
++export function BaselineForm({ initialValue = defaultValue, submitLabel, onSubmit }: BaselineFormProps) {
++  const [value, setValue] = useState<BaselineFormValue>(initialValue);
++  const [isSubmitting, setIsSubmitting] = useState(false);
++
++  const submit = async () => {
++    // TODO: 下輪改為 toast 提示，取代 alert。
++    if (!value.name.trim()) {
++      alert("Baseline 名稱為必填。");
++      return;
++    }
++
++    setIsSubmitting(true);
++    try {
++      const freqHzValue = toOptionalNumber(value.freqHz);
++      const levelValue = toOptionalNumber(value.level);
++      const rpValue = toOptionalNumber(value.rp);
++      const cpValue = toOptionalNumber(value.cp);
++      const rsValue = toOptionalNumber(value.rs);
++      const csValue = toOptionalNumber(value.cs);
++
++      await onSubmit({
++        name: value.name.trim(),
++        conditionLabel: value.conditionLabel.trim() || undefined,
++        note: value.note.trim() || undefined,
++        freqHz:
++          freqHzValue === undefined ? undefined : frequencyToHz(freqHzValue, value.freqUnit),
++        level: levelValue,
++        rp: rpValue === undefined ? undefined : resistanceToOhm(rpValue, value.rpUnit),
++        cp: cpValue === undefined ? undefined : capacitanceToFarad(cpValue, value.cpUnit),
++        rs: rsValue === undefined ? undefined : resistanceToOhm(rsValue, value.rsUnit),
++        cs: csValue === undefined ? undefined : capacitanceToFarad(csValue, value.csUnit),
++      });
++    } finally {
++      setIsSubmitting(false);
++    }
++  };
++
++  return (
++    <div className="space-y-4">
++      <div className="grid gap-4 lg:grid-cols-2">
++        <div className="space-y-2">
++          <Label htmlFor="name">Baseline 名稱</Label>
++          <Input
++            id="name"
++            value={value.name}
++            onChange={(event) => setValue({ ...value, name: event.target.value })}
++            placeholder="例如：基準 A"
++          />
++        </div>
++        <div className="space-y-2">
++          <Label htmlFor="conditionLabel">製程條件</Label>
++          <Input
++            id="conditionLabel"
++            value={value.conditionLabel}
++            onChange={(event) => setValue({ ...value, conditionLabel: event.target.value })}
++            placeholder="例如：未製程前"
++          />
++        </div>
++        <div className="space-y-2">
++          <Label htmlFor="freqHz">FREQ(Hz)</Label>
++          <div className="grid grid-cols-[1fr_96px] gap-2">
++            <Input
++              id="freqHz"
++              type="number"
++              value={value.freqHz}
++              onChange={(event) => setValue({ ...value, freqHz: event.target.value })}
++            />
++            <Select value={value.freqUnit} onValueChange={(next) => setValue({ ...value, freqUnit: next as FrequencyUnit })}>
++              <SelectTrigger>
++                <SelectValue />
++              </SelectTrigger>
++              <SelectContent>
++                {FREQUENCY_UNIT_OPTIONS.map((option) => (
++                  <SelectItem key={option.value} value={option.value}>
++                    {option.label}
++                  </SelectItem>
++                ))}
++              </SelectContent>
++            </Select>
++          </div>
++        </div>
++        <div className="space-y-2">
++          <Label htmlFor="level">LEVEL</Label>
++          <Input
++            id="level"
++            type="number"
++            value={value.level}
++            onChange={(event) => setValue({ ...value, level: event.target.value })}
++          />
++        </div>
++        <div className="space-y-2">
++          <Label htmlFor="rp">Rp</Label>
++          <div className="grid grid-cols-[1fr_96px] gap-2">
++            <Input
++              id="rp"
++              type="number"
++              value={value.rp}
++              onChange={(event) => setValue({ ...value, rp: event.target.value })}
++            />
++            <Select value={value.rpUnit} onValueChange={(next) => setValue({ ...value, rpUnit: next as ResistanceUnit })}>
++              <SelectTrigger>
++                <SelectValue />
++              </SelectTrigger>
++              <SelectContent>
++                {RESISTANCE_UNIT_OPTIONS.map((option) => (
++                  <SelectItem key={option.value} value={option.value}>
++                    {option.label}
++                  </SelectItem>
++                ))}
++              </SelectContent>
++            </Select>
++          </div>
++        </div>
++        <div className="space-y-2">
++          <Label htmlFor="cp">Cp</Label>
++          <div className="grid grid-cols-[1fr_96px] gap-2">
++            <Input
++              id="cp"
++              type="number"
++              value={value.cp}
++              onChange={(event) => setValue({ ...value, cp: event.target.value })}
++            />
++            <Select value={value.cpUnit} onValueChange={(next) => setValue({ ...value, cpUnit: next as CapacitanceUnit })}>
++              <SelectTrigger>
++                <SelectValue />
++              </SelectTrigger>
++              <SelectContent>
++                {CAPACITANCE_UNIT_OPTIONS.map((option) => (
++                  <SelectItem key={option.value} value={option.value}>
++                    {option.label}
++                  </SelectItem>
++                ))}
++              </SelectContent>
++            </Select>
++          </div>
++        </div>
++        <div className="space-y-2">
++          <Label htmlFor="rs">Rs</Label>
++          <div className="grid grid-cols-[1fr_96px] gap-2">
++            <Input
++              id="rs"
++              type="number"
++              value={value.rs}
++              onChange={(event) => setValue({ ...value, rs: event.target.value })}
++            />
++            <Select value={value.rsUnit} onValueChange={(next) => setValue({ ...value, rsUnit: next as ResistanceUnit })}>
++              <SelectTrigger>
++                <SelectValue />
++              </SelectTrigger>
++              <SelectContent>
++                {RESISTANCE_UNIT_OPTIONS.map((option) => (
++                  <SelectItem key={option.value} value={option.value}>
++                    {option.label}
++                  </SelectItem>
++                ))}
++              </SelectContent>
++            </Select>
++          </div>
++        </div>
++        <div className="space-y-2">
++          <Label htmlFor="cs">Cs</Label>
++          <div className="grid grid-cols-[1fr_96px] gap-2">
++            <Input
++              id="cs"
++              type="number"
++              value={value.cs}
++              onChange={(event) => setValue({ ...value, cs: event.target.value })}
++            />
++            <Select value={value.csUnit} onValueChange={(next) => setValue({ ...value, csUnit: next as CapacitanceUnit })}>
++              <SelectTrigger>
++                <SelectValue />
++              </SelectTrigger>
++              <SelectContent>
++                {CAPACITANCE_UNIT_OPTIONS.map((option) => (
++                  <SelectItem key={option.value} value={option.value}>
++                    {option.label}
++                  </SelectItem>
++                ))}
++              </SelectContent>
++            </Select>
++          </div>
++        </div>
++        <div className="space-y-2 lg:col-span-2">
++          <Label htmlFor="note">備註</Label>
++          <Textarea
++            id="note"
++            value={value.note}
++            onChange={(event) => setValue({ ...value, note: event.target.value })}
++          />
++        </div>
++      </div>
++      <Button type="button" onClick={submit} disabled={isSubmitting}>
++        {isSubmitting ? "儲存中..." : submitLabel}
++      </Button>
++    </div>
++  );
++}
+
+
+diff --git a/src/app/baselines/[id]/edit/page.tsx b/src/app/baselines/[id]/edit/page.tsx
+new file mode 100644
+index 0000000..9823844
+--- /dev/null
++++ b/src/app/baselines/[id]/edit/page.tsx
+@@ -0,0 +1,95 @@
++"use client";
++
++import { useParams, useRouter } from "next/navigation";
++import { useEffect, useState } from "react";
++
++import type { BaselineFormValue } from "@/components/baselines/BaselineForm";
++import { BaselineForm } from "@/components/baselines/BaselineForm";
++import { PageHeader } from "@/components/layout/PageHeader";
++import { SectionCard } from "@/components/layout/SectionCard";
++import type { CreateBaselinePayload } from "@/lib/api-types";
++import type { BaselineProfile } from "@/lib/types";
++
++function toFormValue(data: BaselineProfile): BaselineFormValue {
++  const freqValue = data.freqHz;
++  const useKHz = typeof freqValue === "number" && freqValue % 1000 === 0;
++
++  return {
++    name: data.name,
++    conditionLabel: data.conditionLabel ?? "",
++    freqHz: typeof freqValue === "number"
++      ? useKHz
++        ? (freqValue / 1000).toString()
++        : freqValue.toString()
++      : "",
++    freqUnit: useKHz ? "khz" : "hz",
++    level: data.level?.toString() ?? "",
++    rp: data.rp?.toString() ?? "",
++    rpUnit: "ohm",
++    cp: data.cp?.toString() ?? "",
++    cpUnit: "f",
++    rs: data.rs?.toString() ?? "",
++    rsUnit: "ohm",
++    cs: data.cs?.toString() ?? "",
++    csUnit: "f",
++    note: data.note ?? "",
++  };
++}
++
++export default function EditBaselinePage() {
++  const params = useParams<{ id: string }>();
++  const id = params.id;
++  const router = useRouter();
++  const [initialValue, setInitialValue] = useState<BaselineFormValue | null>(null);
++
++  useEffect(() => {
++    const load = async () => {
++      if (!id) {
++        return;
++      }
++      const response = await fetch(`/api/baselines/${id}`);
++      if (!response.ok) {
++        alert("載入 baseline 失敗。");
++        router.push("/baselines");
++        return;
++      }
++      const json = (await response.json()) as { data: BaselineProfile };
++      setInitialValue(toFormValue(json.data));
++    };
++
++    void load();
++  }, [id, router]);
++
++  const updateBaseline = async (payload: CreateBaselinePayload) => {
++    if (!id) {
++      return;
++    }
++    const response = await fetch(`/api/baselines/${id}`, {
++      method: "PATCH",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify(payload),
++    });
++
++    if (!response.ok) {
++      const error = (await response.json()) as { message?: string };
++      alert(error.message ?? "更新 baseline 失敗。");
++      return;
++    }
++
++    alert("Baseline 已更新。");
++    router.push("/baselines");
++  };
++
++  return (
++    <div>
++      <PageHeader title="編輯 Baseline" description="更新 baseline 參考數值與說明。" />
++      <SectionCard title="Baseline 編輯">
++        {initialValue ? (
++          <BaselineForm initialValue={initialValue} submitLabel="更新 Baseline" onSubmit={updateBaseline} />
++        ) : (
++          <p className="text-sm text-slate-500">載入中...</p>
++        )}
++      </SectionCard>
++    </div>
++  );
++}
+
+
+diff --git a/src/components/measurements/MeasurementFilterBar.tsx b/src/components/measurements/MeasurementFilterBar.tsx
+new file mode 100644
+index 0000000..f195c65
+--- /dev/null
++++ b/src/components/measurements/MeasurementFilterBar.tsx
+@@ -0,0 +1,123 @@
++"use client";
++
++import type { BaselineProfile, MeasurementFilter } from "@/lib/types";
++import { formatFrequencyWithUnit } from "@/lib/unit-conversion";
++
++import { BaselineSelector } from "@/components/baselines/BaselineSelector";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { Label } from "@/components/ui/label";
++import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
++
++type MeasurementFilterBarProps = {
++  filters: MeasurementFilter;
++  baselines: BaselineProfile[];
++  conditionOptions: string[];
++  frequencyOptions: number[];
++  levelOptions: number[];
++  onFiltersChange: (filters: MeasurementFilter) => void;
++  onApply: () => void;
++  onReset: () => void;
++};
++
++export function MeasurementFilterBar({
++  filters,
++  baselines,
++  conditionOptions,
++  frequencyOptions,
++  levelOptions,
++  onFiltersChange,
++  onApply,
++  onReset,
++}: MeasurementFilterBarProps) {
++  return (
++    <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
++      <div className="grid gap-4 xl:grid-cols-5">
++        <div className="space-y-2">
++          <Label htmlFor="datasetNameFilter">資料名稱</Label>
++          <Input
++            id="datasetNameFilter"
++            value={filters.datasetName}
++            onChange={(event) => onFiltersChange({ ...filters, datasetName: event.target.value })}
++            placeholder="輔助搜尋（contains）"
++          />
++        </div>
++        <div className="space-y-2">
++          <Label>製程條件</Label>
++          <Select
++            value={filters.conditionLabel || "__all__"}
++            onValueChange={(value) =>
++              onFiltersChange({ ...filters, conditionLabel: value === "__all__" ? "" : value })
++            }
++          >
++            <SelectTrigger>
++              <SelectValue placeholder="選擇製程條件" />
++            </SelectTrigger>
++            <SelectContent>
++              <SelectItem value="__all__">全部</SelectItem>
++              {conditionOptions.map((option) => (
++                <SelectItem key={option} value={option}>
++                  {option}
++                </SelectItem>
++              ))}
++            </SelectContent>
++          </Select>
++        </div>
++        <div className="space-y-2">
++          <Label>FREQ(Hz)</Label>
++          <Select
++            value={filters.freqHz || "__all__"}
++            onValueChange={(value) => onFiltersChange({ ...filters, freqHz: value === "__all__" ? "" : value })}
++          >
++            <SelectTrigger>
++              <SelectValue placeholder="選擇 FREQ" />
++            </SelectTrigger>
++            <SelectContent>
++              <SelectItem value="__all__">全部</SelectItem>
++              {frequencyOptions.map((option) => (
++                <SelectItem key={option.toString()} value={option.toString()}>
++                  {formatFrequencyWithUnit(option)}
++                </SelectItem>
++              ))}
++            </SelectContent>
++          </Select>
++        </div>
++        <div className="space-y-2">
++          <Label>LEVEL</Label>
++          <Select
++            value={filters.level || "__all__"}
++            onValueChange={(value) => onFiltersChange({ ...filters, level: value === "__all__" ? "" : value })}
++          >
++            <SelectTrigger>
++              <SelectValue placeholder="選擇 LEVEL" />
++            </SelectTrigger>
++            <SelectContent>
++              <SelectItem value="__all__">全部</SelectItem>
++              {levelOptions.map((option) => (
++                <SelectItem key={option.toString()} value={option.toString()}>
++                  {option}
++                </SelectItem>
++              ))}
++            </SelectContent>
++          </Select>
++        </div>
++        <BaselineSelector
++          label="Baseline（僅篩選）"
++          value={filters.baselineId}
++          baselines={baselines}
++          emptyLabel="全部"
++          onChange={(baselineId) => onFiltersChange({ ...filters, baselineId })}
++        />
++      </div>
++
++      <div className="mt-4 flex gap-2">
++        <Button type="button" onClick={onApply}>
++          查詢
++        </Button>
++        <Button type="button" variant="outline" onClick={onReset}>
++          重設
++        </Button>
++      </div>
++    </div>
++  );
++}
+
+

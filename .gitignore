@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python
+__pycache__/
+*.pyc
+
+# local database
+prisma/dev.db
+*.db
+*.db-journal
+
+# OCR runtime data
+servers/ocr/data/uploads/
+servers/ocr/data/images/
+servers/ocr/data/json/
