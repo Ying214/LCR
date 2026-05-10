@@ -132,7 +132,7 @@ export function DatasetCompareCharts({ rows }: DatasetCompareChartsProps) {
         <p className="mb-2 text-sm font-semibold text-slate-900">平行座標圖</p>
         <p className="mb-3 text-sm text-slate-700">X 軸：Rp / Cp / Rs / Cs，每條線代表一個比較對象。</p>
 
-        <ChartMountGuard className="h-[430px] w-full overflow-x-auto">
+        <ChartMountGuard className="h-[430px] min-h-[430px] w-full overflow-x-auto">
           <svg
             width="100%"
             height={chartHeight}

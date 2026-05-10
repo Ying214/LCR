@@ -53,8 +53,16 @@ export function CapacitanceTrendChart({
     );
   }
 
+  if (data.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+        目前無可用趨勢資料。
+      </div>
+    );
+  }
+
   return (
-    <ChartMountGuard className="h-[320px]">
+    <ChartMountGuard className="h-[320px] min-h-[320px]">
       <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />

@@ -134,14 +134,10 @@ function getUniqueOrNull(values: number[]): number | null {
 function buildRecordValues(
   dataset: MeasurementDatasetWithRelations,
   indexNo: number,
-): { values: DatasetCompareValues; freqHz: number | null; level: number | null } {
+): { values: DatasetCompareValues; freqHz: number | null; level: number | null } | null {
   const targetRecord = dataset.records.find((record) => record.indexNo === indexNo);
   if (!targetRecord) {
-    return {
-      values: { rp: null, cp: null, rs: null, cs: null },
-      freqHz: null,
-      level: null,
-    };
+    return null;
   }
 
   return {
@@ -229,16 +225,27 @@ export function buildDatasetCompareRows(
 
     const sourceIndexNo = getSourceIndex(target.source);
     const averageValues = buildAverageValues(dataset);
-    const selectedRecord = sourceIndexNo === null ? null : buildRecordValues(dataset, sourceIndexNo);
-    const values = sourceIndexNo === null ? averageValues : selectedRecord.values;
-    const freqHz =
-      sourceIndexNo === null
-        ? getUniqueOrNull(dataset.records.map((record) => record.freqHz))
-        : selectedRecord.freqHz;
-    const level =
-      sourceIndexNo === null
-        ? getUniqueOrNull(dataset.records.map((record) => record.level))
-        : selectedRecord.level;
+    let values: DatasetCompareValues;
+    let freqHz: number | null;
+    let level: number | null;
+
+    if (sourceIndexNo === null) {
+      values = averageValues;
+      freqHz = getUniqueOrNull(dataset.records.map((record) => record.freqHz));
+      level = getUniqueOrNull(dataset.records.map((record) => record.level));
+    } else {
+      const selectedRecord = buildRecordValues(dataset, sourceIndexNo);
+      if (!selectedRecord) {
+        values = { rp: null, cp: null, rs: null, cs: null };
+        freqHz = null;
+        level = null;
+      } else {
+        values = selectedRecord.values;
+        freqHz = selectedRecord.freqHz;
+        level = selectedRecord.level;
+      }
+    }
+
     const missingMessages = buildMissingMessages(values, target.source);
 
     return {

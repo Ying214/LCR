@@ -349,7 +349,7 @@ export function SingleParameterTrendChart({
         </label>
       </div>
 
-      <ChartMountGuard className="h-[420px]">
+      <ChartMountGuard className="h-[420px] min-h-[420px]">
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
           <LineChart data={data} margin={{ top: 18, right: 28, left: 28, bottom: 14 }}>
             <CartesianGrid strokeDasharray="3 3" />
