@@ -26,8 +26,9 @@ DATA_DIR = BASE_DIR / "data"
 UPLOAD_DIR = DATA_DIR / "uploads"
 JSON_DIR = DATA_DIR / "json"
 IMAGE_DIR = DATA_DIR / "images"
+OCR_DIR = DATA_DIR / "ocr"
 
-for folder in (UPLOAD_DIR, JSON_DIR, IMAGE_DIR):
+for folder in (UPLOAD_DIR, JSON_DIR, IMAGE_DIR, OCR_DIR):
     folder.mkdir(parents=True, exist_ok=True)
 
 ocr = PaddleOCR(
@@ -57,9 +58,49 @@ def to_plain_python(value: Any) -> Any:
     return value
 
 
-def sanitize_filename(filename: str) -> str:
-    cleaned = re.sub(r"[^a-zA-Z0-9._-]", "_", filename.strip())
-    return cleaned or "upload.png"
+def sanitize_name_component(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return "ocr_upload"
+
+    chars: list[str] = []
+    for char in normalized:
+        if char.isspace():
+            chars.append("_")
+            continue
+        if char.isalnum() or char in {"_", "-"}:
+            chars.append(char)
+        else:
+            chars.append("_")
+
+    cleaned = "".join(chars)
+    cleaned = re.sub(r"_+", "_", cleaned)
+    cleaned = cleaned.strip("_-")
+    return cleaned or "ocr_upload"
+
+
+def sanitize_extension(filename: str) -> str:
+    suffix = Path(filename).suffix.strip()
+    if re.fullmatch(r"\.[a-zA-Z0-9]+", suffix):
+        return suffix.lower()
+    return ".png"
+
+
+def build_file_identity(
+    original_filename: str | None,
+    uploaded_at: datetime,
+) -> tuple[str, str, str, str, str]:
+    fallback_filename = "upload.png"
+    source_filename = (original_filename or fallback_filename).strip() or fallback_filename
+    original_base_name = sanitize_name_component(Path(source_filename).stem)
+    extension = sanitize_extension(source_filename)
+
+    timestamp = uploaded_at.strftime("%Y%m%d_%H%M%S")
+    date_only = uploaded_at.strftime("%Y%m%d")
+    short_id = uuid4().hex[:6]
+    file_key = f"{timestamp}_{original_base_name}_{short_id}"
+    dataset_name_suggestion = f"{date_only}_{original_base_name}"
+    return source_filename, original_base_name, extension, file_key, dataset_name_suggestion
 
 
 def to_float(value: Any) -> float | None:
@@ -149,58 +190,67 @@ def to_pil_image(image_value: Any) -> Image.Image | None:
 
 
 def save_result_images(
-    result: Any, request_id: str, result_index: int
-) -> tuple[dict[str, str], list[str], str | None]:
-    before_files = {
-        path.resolve(): path.stat().st_mtime for path in IMAGE_DIR.glob("*") if path.is_file()
-    }
-    if hasattr(result, "save_to_img"):
-        try:
-            result.save_to_img(str(IMAGE_DIR))
-        except Exception as error:
-            logger.warning("save_to_img failed for request %s result %s: %s", request_id, result_index, error)
-    after_files = {
-        path.resolve(): path.stat().st_mtime for path in IMAGE_DIR.glob("*") if path.is_file()
-    }
-
+    result: Any,
+    output_dir: Path,
+    result_index: int,
+    total_results: int,
+) -> tuple[dict[str, str], list[str], str | None, str | None]:
     result_images: dict[str, str] = {}
     saved_image_paths: list[str] = []
-    for path, mtime in sorted(after_files.items()):
-        previous_mtime = before_files.get(path)
-        if previous_mtime is None or mtime != previous_mtime:
-            saved_image_paths.append(str(path))
     saved_ocr_image_path: str | None = None
+    saved_normalized_image_path: str | None = None
     images = getattr(result, "img", None)
     if not isinstance(images, dict):
-        unique_paths = list(dict.fromkeys(saved_image_paths))
-        return result_images, unique_paths, saved_ocr_image_path
+        return result_images, saved_image_paths, saved_ocr_image_path, saved_normalized_image_path
 
     for key, value in images.items():
         pil_image = to_pil_image(value)
         if pil_image is None:
             continue
 
-        filename = f"{request_id}_{result_index}_{key}.png"
-        target_path = IMAGE_DIR / filename
+        safe_key = re.sub(r"[^a-zA-Z0-9_-]", "_", str(key).strip()) or "img"
+        target_path: Path | None = None
+        if safe_key == "ocr_res_img":
+            filename = "ocr.png" if total_results == 1 else f"ocr_{result_index}.png"
+            target_path = output_dir / filename
+        elif safe_key in {
+            "normalized_img",
+            "preprocessed_img",
+            "input_img",
+            "input_image",
+            "origin_img",
+            "origin_image",
+            "original_img",
+            "original_image",
+            "src_img",
+        } and saved_normalized_image_path is None:
+            filename = "normalized.png" if total_results == 1 else f"normalized_{result_index}.png"
+            target_path = output_dir / filename
+
+        if target_path is None:
+            result_images[key] = pil_to_base64(pil_image)
+            continue
+
         try:
             pil_image.save(target_path)
             result_images[key] = pil_to_base64(pil_image)
             saved_image_paths.append(str(target_path))
         except Exception as error:
             logger.warning(
-                "save image failed for request %s result %s key %s: %s",
-                request_id,
+                "save image failed for output %s result %s key %s: %s",
+                output_dir,
                 result_index,
                 key,
                 error,
             )
             continue
 
-        if key == "ocr_res_img":
+        if safe_key == "ocr_res_img":
             saved_ocr_image_path = str(target_path)
+        elif saved_normalized_image_path is None:
+            saved_normalized_image_path = str(target_path)
 
-    unique_paths = list(dict.fromkeys(saved_image_paths))
-    return result_images, unique_paths, saved_ocr_image_path
+    return result_images, saved_image_paths, saved_ocr_image_path, saved_normalized_image_path
 
 
 def average(numbers: list[float]) -> float | None:
@@ -230,9 +280,14 @@ async def run_ocr(file: UploadFile = File(...)):
     except Exception:
         return JSONResponse({"message": "無法讀取圖片檔案。"}, status_code=400)
 
-    request_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}"
-    safe_name = sanitize_filename(file.filename or "upload.png")
-    upload_path = UPLOAD_DIR / f"{request_id}_{safe_name}"
+    uploaded_at = datetime.now()
+    original_filename, original_base_name, original_extension, file_key, dataset_name_suggestion = build_file_identity(
+        file.filename,
+        uploaded_at,
+    )
+    run_dir = OCR_DIR / file_key
+    run_dir.mkdir(parents=True, exist_ok=True)
+    upload_path = run_dir / f"original{original_extension}"
     upload_path.write_bytes(image_bytes)
 
     img_array = np.array(image)
@@ -251,18 +306,34 @@ async def run_ocr(file: UploadFile = File(...)):
     saved_json_paths: list[str] = []
     saved_image_paths: list[str] = []
     merged_images: dict[str, str] = {}
+    primary_raw_json_path: str | None = None
+    primary_marked_image_path: str | None = None
+    primary_normalized_image_path: str | None = None
+    total_results = len(prediction_results)
 
     for index, result in enumerate(prediction_results):
         raw_json = read_result_json(result)
         lines, numeric_scores = build_lines(raw_json)
         result_average = average(numeric_scores)
 
-        json_path = JSON_DIR / f"{request_id}_{index}.json"
+        json_filename = "result.json" if total_results == 1 else f"result_{index}.json"
+        json_path = run_dir / json_filename
         saved_json_path = save_result_json(result, raw_json, json_path)
         saved_json_paths.append(str(saved_json_path))
+        if primary_raw_json_path is None:
+            primary_raw_json_path = str(saved_json_path)
 
-        images, result_saved_image_paths, saved_image_path = save_result_images(result, request_id, index)
+        images, result_saved_image_paths, saved_image_path, normalized_image_path = save_result_images(
+            result,
+            run_dir,
+            index,
+            total_results,
+        )
         saved_image_paths.extend(result_saved_image_paths)
+        if primary_marked_image_path is None and saved_image_path:
+            primary_marked_image_path = saved_image_path
+        if primary_normalized_image_path is None and normalized_image_path:
+            primary_normalized_image_path = normalized_image_path
 
         for image_key, image_base64 in images.items():
             if image_key not in merged_images:
@@ -295,5 +366,20 @@ async def run_ocr(file: UploadFile = File(...)):
             "saved_json_paths": saved_json_paths,
             "saved_image_paths": list(dict.fromkeys(saved_image_paths)),
             "results": response_results,
+            "ocrMetadata": {
+                "datasetNameSuggestion": dataset_name_suggestion,
+                "originalFilename": original_filename,
+                "originalBaseName": original_base_name,
+                "uploadTimestamp": uploaded_at.isoformat(),
+                "fileKey": file_key,
+                "folderPath": str(run_dir),
+                "originalImagePath": str(upload_path),
+                "normalizedImagePath": primary_normalized_image_path,
+                "markedImagePath": primary_marked_image_path,
+                "rawJsonPath": primary_raw_json_path,
+                "wasConverted": False,
+                "originalMimeType": file.content_type,
+                "normalizedMimeType": "image/png" if primary_normalized_image_path else None,
+            },
         }
     )

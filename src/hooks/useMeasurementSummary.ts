@@ -47,15 +47,17 @@ export function useMeasurementSummary(
     const selectedFreqHz =
       filters.freqHz.trim() === "" ? undefined : Number(filters.freqHz);
     const selectedLevel = filters.level.trim() === "" ? undefined : Number(filters.level);
+    const primaryDataset = datasets[0];
     const canBuildBaselineRows =
       datasets.length === 1 &&
-      datasets[0].baseline !== null &&
+      primaryDataset !== undefined &&
+      primaryDataset.baseline !== null &&
       selectedFreqHz !== undefined &&
       Number.isFinite(selectedFreqHz) &&
       selectedLevel !== undefined &&
       Number.isFinite(selectedLevel);
-    const baselineComparisonRows = canBuildBaselineRows
-      ? buildBaselineComparisonRows(datasets[0], {
+    const baselineComparisonRows = canBuildBaselineRows && primaryDataset
+      ? buildBaselineComparisonRows(primaryDataset, {
           freqHz: selectedFreqHz as number,
           level: selectedLevel as number,
         })

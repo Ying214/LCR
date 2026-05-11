@@ -12,30 +12,37 @@ import type {
 } from "@/lib/types";
 
 type ParameterSource = Pick<ParameterValues, "rp" | "cp" | "rs" | "cs">;
+type NullableParameterSource = {
+  rp: number | null;
+  cp: number | null;
+  rs: number | null;
+  cs: number | null;
+};
 
 const PARAMETER_KEYS: ParameterKey[] = ["rp", "cp", "rs", "cs"];
 
-export function calculateAverages(records: ParameterSource[]): ParameterValues {
+function toFiniteNumbers(values: Array<number | null | undefined>): number[] {
+  return values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+}
+
+export function calculateAverages(records: NullableParameterSource[]): ParameterValues {
   if (records.length === 0) {
     return { rp: 0, cp: 0, rs: 0, cs: 0 };
   }
 
-  const totals = records.reduce(
-    (acc, record) => {
-      acc.rp += record.rp;
-      acc.cp += record.cp;
-      acc.rs += record.rs;
-      acc.cs += record.cs;
-      return acc;
-    },
-    { rp: 0, cp: 0, rs: 0, cs: 0 },
-  );
+  const rpValues = toFiniteNumbers(records.map((record) => record.rp));
+  const cpValues = toFiniteNumbers(records.map((record) => record.cp));
+  const rsValues = toFiniteNumbers(records.map((record) => record.rs));
+  const csValues = toFiniteNumbers(records.map((record) => record.cs));
+
+  const averageOrZero = (values: number[]) =>
+    values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
 
   return {
-    rp: totals.rp / records.length,
-    cp: totals.cp / records.length,
-    rs: totals.rs / records.length,
-    cs: totals.cs / records.length,
+    rp: averageOrZero(rpValues),
+    cp: averageOrZero(cpValues),
+    rs: averageOrZero(rsValues),
+    cs: averageOrZero(csValues),
   };
 }
 
@@ -122,7 +129,7 @@ export function buildBaselineComparisonRows(
   });
 
   return PARAMETER_KEYS.map((parameter) => {
-    const measurementValues = targetRecords.map((record) => record[parameter]);
+    const measurementValues = toFiniteNumbers(targetRecords.map((record) => record[parameter]));
     const averageValue =
       measurementValues.length > 0 ? measurementValues.reduce((sum, value) => sum + value, 0) / measurementValues.length : null;
     const baselineValue = dataset.baseline?.[parameter] ?? null;
@@ -199,10 +206,18 @@ export function buildConditionComparisonSummary(
     }
 
     for (const record of dataset.records) {
-      bucket.rp.push(record.rp);
-      bucket.cp.push(record.cp);
-      bucket.rs.push(record.rs);
-      bucket.cs.push(record.cs);
+      if (typeof record.rp === "number" && Number.isFinite(record.rp)) {
+        bucket.rp.push(record.rp);
+      }
+      if (typeof record.cp === "number" && Number.isFinite(record.cp)) {
+        bucket.cp.push(record.cp);
+      }
+      if (typeof record.rs === "number" && Number.isFinite(record.rs)) {
+        bucket.rs.push(record.rs);
+      }
+      if (typeof record.cs === "number" && Number.isFinite(record.cs)) {
+        bucket.cs.push(record.cs);
+      }
       bucket.sampleCount += 1;
     }
   }
@@ -338,10 +353,10 @@ export function buildConditionComparisonSummary(
 export type TrendSeriesPoint = {
   datasetId: string;
   indexNo: number;
-  rp: number;
-  cp: number;
-  rs: number;
-  cs: number;
+  rp: number | null;
+  cp: number | null;
+  rs: number | null;
+  cs: number | null;
   avgRp: number;
   avgCp: number;
   avgRs: number;

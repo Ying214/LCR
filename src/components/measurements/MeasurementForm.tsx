@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { CreateMeasurementDatasetPayload } from "@/lib/api-types";
+import type { CreateMeasurementDatasetPayload, OcrMetadata } from "@/lib/api-types";
 import { capacitanceToFarad, frequencyToHz, resistanceToOhm } from "@/lib/unit-conversion";
 
 import { SectionCard } from "@/components/layout/SectionCard";
@@ -54,10 +54,57 @@ function parseRequiredNonNegative(
   return { value: parsed, message: null };
 }
 
+function parseOptionalNumber(
+  rawValue: string,
+  fieldLabel: string,
+  rowIndex: number,
+): { value: number | null; message: string | null } {
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    return { value: null, message: null };
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    return {
+      value: null,
+      message: `第 ${rowIndex + 1} 筆 ${fieldLabel} 必須為有效數值。`,
+    };
+  }
+
+  return { value: parsed, message: null };
+}
+
 export function MeasurementForm() {
   const [basicInfo, setBasicInfo] = useState<MeasurementBasicInfo>(initialBasicInfo);
   const [rows, setRows] = useState<ManualMeasurementRow[]>(createInitialManualRows());
+  const [ocrMetadata, setOcrMetadata] = useState<OcrMetadata | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const handleApplyRows = (
+    nextRows: ManualMeasurementRow[],
+    options?: {
+      datasetNameSuggestion?: string;
+      ocrMetadata?: OcrMetadata | null;
+    },
+  ) => {
+    setRows(nextRows);
+    setOcrMetadata(options?.ocrMetadata ?? null);
+
+    if (!options?.datasetNameSuggestion) {
+      return;
+    }
+
+    setBasicInfo((prev) => {
+      if (prev.datasetName.trim() !== "") {
+        return prev;
+      }
+      return {
+        ...prev,
+        datasetName: options.datasetNameSuggestion ?? prev.datasetName,
+      };
+    });
+  };
 
   const saveManualInput = async () => {
     // TODO: 下輪改為 toast 提示，取代 alert。
@@ -78,22 +125,22 @@ export function MeasurementForm() {
         alert(level.message);
         return;
       }
-      const rp = parseRequiredNonNegative(row.rp, "Rp", index);
+      const rp = parseOptionalNumber(row.rp, "Rp", index);
       if (rp.message) {
         alert(rp.message);
         return;
       }
-      const cp = parseRequiredNonNegative(row.cp, "Cp", index);
+      const cp = parseOptionalNumber(row.cp, "Cp", index);
       if (cp.message) {
         alert(cp.message);
         return;
       }
-      const rs = parseRequiredNonNegative(row.rs, "Rs", index);
+      const rs = parseOptionalNumber(row.rs, "Rs", index);
       if (rs.message) {
         alert(rs.message);
         return;
       }
-      const cs = parseRequiredNonNegative(row.cs, "Cs", index);
+      const cs = parseOptionalNumber(row.cs, "Cs", index);
       if (cs.message) {
         alert(cs.message);
         return;
@@ -103,16 +150,17 @@ export function MeasurementForm() {
         indexNo: index + 1,
         freqHz: frequencyToHz(freq.value as number, row.freqUnit),
         level: level.value as number,
-        rp: resistanceToOhm(rp.value as number, row.rpUnit),
-        cp: capacitanceToFarad(cp.value as number, row.cpUnit),
-        rs: resistanceToOhm(rs.value as number, row.rsUnit),
-        cs: capacitanceToFarad(cs.value as number, row.csUnit),
+        rp: rp.value === null ? null : resistanceToOhm(rp.value, row.rpUnit),
+        cp: cp.value === null ? null : capacitanceToFarad(cp.value, row.cpUnit),
+        rs: rs.value === null ? null : resistanceToOhm(rs.value, row.rsUnit),
+        cs: cs.value === null ? null : capacitanceToFarad(cs.value, row.csUnit),
       });
     }
 
     const payload: CreateMeasurementDatasetPayload = {
       datasetName: basicInfo.datasetName.trim(),
       conditionLabel: basicInfo.conditionLabel.trim(),
+      metadata: ocrMetadata ? { ocr: ocrMetadata } : undefined,
       records: validatedRecords,
     };
 
@@ -143,7 +191,7 @@ export function MeasurementForm() {
       </SectionCard>
 
       <SectionCard title="圖片上傳匯入">
-        <MeasurementImportPanel onApplyRows={setRows} />
+        <MeasurementImportPanel onApplyRows={handleApplyRows} />
       </SectionCard>
 
       <SectionCard title="手動輸入量測資料">

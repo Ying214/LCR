@@ -29,6 +29,7 @@ model MeasurementDataset {
   datasetName    String
   conditionLabel String
   note           String?
+  metadata       Json?
   baselineId     String?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
@@ -43,10 +44,10 @@ model MeasurementRecord {
   indexNo    Int
   freqHz     Float
   level      Float
-  rp         Float
-  cp         Float
-  rs         Float
-  cs         Float
+  rp         Float?
+  cp         Float?
+  rs         Float?
+  cs         Float?
   createdAt  DateTime           @default(now())
 
   dataset    MeasurementDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)

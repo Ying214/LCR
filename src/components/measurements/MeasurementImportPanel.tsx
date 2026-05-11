@@ -3,20 +3,25 @@
 import Image from "next/image";
 import { useMemo, useState, type FormEvent } from "react";
 
-import type { OcrServiceResponse } from "@/lib/api-types";
+import type { OcrMetadata, OcrServiceResponse } from "@/lib/api-types";
 import { extractMeasurementRecordsFromOcr } from "@/lib/ocr-parser";
 import { cn } from "@/lib/utils";
 
 import type { ManualMeasurementRow } from "@/components/measurements/MeasurementManualTable";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 
 type ApiErrorResponse = {
   message?: string;
 };
 
 type MeasurementImportPanelProps = {
-  onApplyRows: (rows: ManualMeasurementRow[]) => void;
+  onApplyRows: (
+    rows: ManualMeasurementRow[],
+    options?: {
+      datasetNameSuggestion?: string;
+      ocrMetadata?: OcrMetadata | null;
+    },
+  ) => void;
 };
 
 type OcrConfidenceState = {
@@ -39,6 +44,31 @@ const OCR_CHECK_FIELDS = [
   { valueKey: "rs", scoreKey: "rsScore", label: "Rs" },
   { valueKey: "cs", scoreKey: "csScore", label: "Cs" },
 ] as const;
+
+function formatTimestampForDatasetName(value: Date): string {
+  const year = value.getFullYear().toString().padStart(4, "0");
+  const month = (value.getMonth() + 1).toString().padStart(2, "0");
+  const day = value.getDate().toString().padStart(2, "0");
+  return `${year}${month}${day}`;
+}
+
+function sanitizeDatasetBaseName(originalFilename: string | null): string {
+  const source = (originalFilename ?? "").trim();
+  const withoutExtension = source.replace(/\.[^.]+$/, "").trim();
+  const candidate = withoutExtension || "ocr_upload";
+
+  return candidate
+    .replace(/\s+/g, "_")
+    .replace(/[^\p{L}\p{N}_-]+/gu, "_")
+    .replace(/_+/g, "_")
+    .replace(/^[_-]+|[_-]+$/g, "") || "ocr_upload";
+}
+
+function buildDatasetNameSuggestion(originalFilename: string | null, uploadedAt?: Date): string {
+  const timestamp = formatTimestampForDatasetName(uploadedAt ?? new Date());
+  const baseName = sanitizeDatasetBaseName(originalFilename);
+  return `${timestamp}_${baseName}`;
+}
 
 function formatAverageScore(value: number | null): string {
   if (value === null) {
@@ -132,6 +162,59 @@ function getDebugImage(ocrResponse: OcrServiceResponse | null): string | null {
   return null;
 }
 
+function getOriginalDebugImage(ocrResponse: OcrServiceResponse | null): string | null {
+  if (!ocrResponse) {
+    return null;
+  }
+
+  const tryResolveFromImages = (images: Record<string, string> | undefined) => {
+    if (!images) {
+      return null;
+    }
+
+    const preferredKeys = [
+      "input_img",
+      "input_image",
+      "origin_img",
+      "origin_image",
+      "original_img",
+      "original_image",
+      "src_img",
+      "normalized_img",
+      "preprocessed_img",
+    ];
+
+    for (const key of preferredKeys) {
+      const resolved = images[key];
+      if (resolved) {
+        return resolved;
+      }
+    }
+
+    for (const [key, value] of Object.entries(images)) {
+      if (key !== "ocr_res_img" && value) {
+        return value;
+      }
+    }
+
+    return null;
+  };
+
+  const mergedResolved = tryResolveFromImages(ocrResponse.images);
+  if (mergedResolved) {
+    return mergedResolved;
+  }
+
+  for (const result of ocrResponse.results) {
+    const resolved = tryResolveFromImages(result.images);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return null;
+}
+
 function createIssueSummary(rows: ManualMeasurementRow[]): OcrIssueSummary {
   const missingValues: string[] = [];
   const lowScores: string[] = [];
@@ -166,13 +249,10 @@ export function MeasurementImportPanel({ onApplyRows }: MeasurementImportPanelPr
   const [debugOpen, setDebugOpen] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
 
-  const rawJson = useMemo(
-    () => (ocrResponse ? JSON.stringify(ocrResponse, null, 2) : ""),
-    [ocrResponse],
-  );
   const averageScore = useMemo(() => resolveAverageScore(ocrResponse), [ocrResponse]);
   const confidenceState = useMemo(() => getConfidenceState(averageScore), [averageScore]);
   const debugImage = useMemo(() => getDebugImage(ocrResponse), [ocrResponse]);
+  const debugOriginalImage = useMemo(() => getOriginalDebugImage(ocrResponse), [ocrResponse]);
   const issueSummary = useMemo(() => createIssueSummary(ocrRows), [ocrRows]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -207,6 +287,9 @@ export function MeasurementImportPanel({ onApplyRows }: MeasurementImportPanelPr
 
       const nextResponse = json as OcrServiceResponse;
       const rows = buildManualRows(nextResponse);
+      const ocrMetadata = nextResponse.ocrMetadata ?? null;
+      const datasetNameSuggestion =
+        ocrMetadata?.datasetNameSuggestion ?? buildDatasetNameSuggestion(selectedFile.name, new Date());
       setOcrResponse(nextResponse);
 
       if (rows.length === 0) {
@@ -216,7 +299,7 @@ export function MeasurementImportPanel({ onApplyRows }: MeasurementImportPanelPr
       }
 
       setOcrRows(rows);
-      onApplyRows(rows);
+      onApplyRows(rows, { datasetNameSuggestion, ocrMetadata });
       setSuccessMessage(`已從 OCR 匯入 ${rows.length} 筆，請在下方表格確認並可手動修改。`);
       setSelectedFile(null);
       setFileInputKey((prev) => prev + 1);
@@ -299,6 +382,19 @@ export function MeasurementImportPanel({ onApplyRows }: MeasurementImportPanelPr
         >
           <summary className="cursor-pointer text-sm font-medium text-slate-700">開發用 debug 資訊</summary>
           <div className="mt-3 flex flex-col gap-3">
+            {debugOriginalImage ? (
+              <div>
+                <p className="mb-2 text-sm font-medium text-slate-700">原始上傳圖片（debug）</p>
+                <Image
+                  src={`data:image/png;base64,${debugOriginalImage}`}
+                  alt="OCR debug original"
+                  width={1200}
+                  height={800}
+                  unoptimized
+                  className="max-h-96 w-full rounded-md border border-slate-200 object-contain"
+                />
+              </div>
+            ) : null}
             {debugImage ? (
               <div>
                 <p className="mb-2 text-sm font-medium text-slate-700">OCR 標註圖（debug）</p>
@@ -312,10 +408,6 @@ export function MeasurementImportPanel({ onApplyRows }: MeasurementImportPanelPr
                 />
               </div>
             ) : null}
-            <div>
-              <p className="mb-2 text-sm font-medium text-slate-700">OCR raw JSON（debug）</p>
-              <Textarea readOnly value={rawJson} className="min-h-64 font-mono text-xs" />
-            </div>
           </div>
         </details>
       ) : null}

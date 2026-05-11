@@ -31,11 +31,29 @@ function toInputValue(value: number): string {
   return Number(value.toPrecision(12)).toString();
 }
 
-function parseNonNegative(rawValue: string, label: string): number | null {
-  const parsed = Number(rawValue.trim());
+function parseRequiredNonNegative(rawValue: string, label: string): number | null {
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    alert(`${label} 為必填欄位。`);
+    return null;
+  }
+  const parsed = Number(trimmed);
   if (!Number.isFinite(parsed) || parsed < 0) {
     alert(`${label} 必須為大於或等於 0 的數值。`);
     return null;
+  }
+  return parsed;
+}
+
+function parseOptionalNumber(rawValue: string, label: string): number | null | undefined {
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    alert(`${label} 必須為有效數值。`);
+    return undefined;
   }
   return parsed;
 }
@@ -64,22 +82,22 @@ export function MeasurementRecordEditModal({
       return;
     }
     const editableFreq = toEditableFrequency(record.freqHz);
-    const editableRp = toEditableResistance(record.rp);
-    const editableCp = toEditableCapacitance(record.cp);
-    const editableRs = toEditableResistance(record.rs);
-    const editableCs = toEditableCapacitance(record.cs);
+    const editableRp = record.rp === null ? null : toEditableResistance(record.rp);
+    const editableCp = record.cp === null ? null : toEditableCapacitance(record.cp);
+    const editableRs = record.rs === null ? null : toEditableResistance(record.rs);
+    const editableCs = record.cs === null ? null : toEditableCapacitance(record.cs);
 
     setFreqValue(toInputValue(editableFreq.value));
     setFreqUnit(editableFreq.unit);
     setLevel(toInputValue(record.level));
-    setRpValue(toInputValue(editableRp.value));
-    setRpUnit(editableRp.unit);
-    setCpValue(toInputValue(editableCp.value));
-    setCpUnit(editableCp.unit);
-    setRsValue(toInputValue(editableRs.value));
-    setRsUnit(editableRs.unit);
-    setCsValue(toInputValue(editableCs.value));
-    setCsUnit(editableCs.unit);
+    setRpValue(editableRp ? toInputValue(editableRp.value) : "");
+    setRpUnit(editableRp?.unit ?? "ohm");
+    setCpValue(editableCp ? toInputValue(editableCp.value) : "");
+    setCpUnit(editableCp?.unit ?? "nf");
+    setRsValue(editableRs ? toInputValue(editableRs.value) : "");
+    setRsUnit(editableRs?.unit ?? "ohm");
+    setCsValue(editableCs ? toInputValue(editableCs.value) : "");
+    setCsUnit(editableCs?.unit ?? "nf");
   }, [record]);
 
   if (!record || !datasetId) {
@@ -87,38 +105,38 @@ export function MeasurementRecordEditModal({
   }
 
   const save = async () => {
-    const parsedFreq = parseNonNegative(freqValue, "FREQ");
+    const parsedFreq = parseRequiredNonNegative(freqValue, "FREQ");
     if (parsedFreq === null) {
       return;
     }
-    const parsedLevel = parseNonNegative(level, "LEVEL");
+    const parsedLevel = parseRequiredNonNegative(level, "LEVEL");
     if (parsedLevel === null) {
       return;
     }
-    const parsedRp = parseNonNegative(rpValue, "Rp");
-    if (parsedRp === null) {
+    const parsedRp = parseOptionalNumber(rpValue, "Rp");
+    if (parsedRp === undefined) {
       return;
     }
-    const parsedCp = parseNonNegative(cpValue, "Cp");
-    if (parsedCp === null) {
+    const parsedCp = parseOptionalNumber(cpValue, "Cp");
+    if (parsedCp === undefined) {
       return;
     }
-    const parsedRs = parseNonNegative(rsValue, "Rs");
-    if (parsedRs === null) {
+    const parsedRs = parseOptionalNumber(rsValue, "Rs");
+    if (parsedRs === undefined) {
       return;
     }
-    const parsedCs = parseNonNegative(csValue, "Cs");
-    if (parsedCs === null) {
+    const parsedCs = parseOptionalNumber(csValue, "Cs");
+    if (parsedCs === undefined) {
       return;
     }
 
     const payload: UpdateMeasurementRecordPayload = {
       freqHz: frequencyToHz(parsedFreq, freqUnit),
       level: parsedLevel,
-      rp: resistanceToOhm(parsedRp, rpUnit),
-      cp: capacitanceToFarad(parsedCp, cpUnit),
-      rs: resistanceToOhm(parsedRs, rsUnit),
-      cs: capacitanceToFarad(parsedCs, csUnit),
+      rp: parsedRp === null ? null : resistanceToOhm(parsedRp, rpUnit),
+      cp: parsedCp === null ? null : capacitanceToFarad(parsedCp, cpUnit),
+      rs: parsedRs === null ? null : resistanceToOhm(parsedRs, rsUnit),
+      cs: parsedCs === null ? null : capacitanceToFarad(parsedCs, csUnit),
     };
 
     setSaving(true);
@@ -250,4 +268,3 @@ function UnitValueInput<T extends string>({
     </div>
   );
 }
-

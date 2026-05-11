@@ -74,13 +74,21 @@ function createEmptyRow(columnUnits: ColumnUnitDefaults): ManualMeasurementRow {
   };
 }
 
-function parseNonNegativeNumber(value: string): number | null {
+function parseOptionalNumber(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) {
     return null;
   }
   const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return parsed;
+}
+
+function parseRequiredNonNegativeNumber(value: string): number | null {
+  const parsed = parseOptionalNumber(value);
+  if (parsed === null || parsed < 0) {
     return null;
   }
   return parsed;
@@ -138,10 +146,10 @@ export function MeasurementManualTable({ rows, onRowsChange }: MeasurementManual
   const averageSummary = useMemo(() => {
     const normalizedRows = rows
       .map((row) => {
-        const rp = parseNonNegativeNumber(row.rp);
-        const cp = parseNonNegativeNumber(row.cp);
-        const rs = parseNonNegativeNumber(row.rs);
-        const cs = parseNonNegativeNumber(row.cs);
+        const rp = parseOptionalNumber(row.rp);
+        const cp = parseOptionalNumber(row.cp);
+        const rs = parseOptionalNumber(row.rs);
+        const cs = parseOptionalNumber(row.cs);
 
         if (rp === null || cp === null || rs === null || cs === null) {
           return null;
@@ -190,8 +198,8 @@ export function MeasurementManualTable({ rows, onRowsChange }: MeasurementManual
   };
 
   const applyColumnUnitsToAllRows = () => {
-    const parsedFreq = parseNonNegativeNumber(batchFreqValue);
-    const parsedLevel = parseNonNegativeNumber(batchLevelValue);
+    const parsedFreq = parseRequiredNonNegativeNumber(batchFreqValue);
+    const parsedLevel = parseRequiredNonNegativeNumber(batchLevelValue);
 
     if (parsedFreq === null || parsedLevel === null) {
       // TODO: 下輪改為 toast 提示，取代 alert。

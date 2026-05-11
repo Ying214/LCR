@@ -8,6 +8,26 @@ export type CapacitanceUnit = "f" | "mf" | "uf" | "nf" | "pf";
 
 export type FrequencyUnit = "hz" | "khz";
 
+export type MeasurementOcrMetadata = {
+  datasetNameSuggestion?: string;
+  originalFilename?: string;
+  originalBaseName?: string;
+  uploadTimestamp?: string;
+  fileKey?: string;
+  folderPath?: string;
+  originalImagePath?: string;
+  normalizedImagePath?: string;
+  markedImagePath?: string;
+  rawJsonPath?: string;
+  wasConverted?: boolean;
+  originalMimeType?: string;
+  normalizedMimeType?: string;
+};
+
+export type MeasurementDatasetMetadata = {
+  ocr?: MeasurementOcrMetadata;
+};
+
 export type ParameterValues = {
   rp: number;
   cp: number;
@@ -35,6 +55,7 @@ export type MeasurementDataset = {
   datasetName: string;
   conditionLabel: string;
   note: string | null;
+  metadata?: MeasurementDatasetMetadata | null;
   baselineId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -46,10 +67,10 @@ export type MeasurementRecord = {
   indexNo: number;
   freqHz: number;
   level: number;
-  rp: number;
-  cp: number;
-  rs: number;
-  cs: number;
+  rp: number | null;
+  cp: number | null;
+  rs: number | null;
+  cs: number | null;
   createdAt: string;
 };
 

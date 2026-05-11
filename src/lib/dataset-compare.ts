@@ -67,7 +67,7 @@ function getSourceIndex(source: DatasetCompareSource): number | null {
   return Number.isInteger(parsed) ? parsed : null;
 }
 
-function toFiniteValues(values: Array<number | undefined>): number[] {
+function toFiniteValues(values: Array<number | null | undefined>): number[] {
   return values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
 }
 
@@ -140,12 +140,15 @@ function buildRecordValues(
     return null;
   }
 
+  const toFiniteOrNull = (value: number | null | undefined) =>
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+
   return {
     values: {
-      rp: Number.isFinite(targetRecord.rp) ? targetRecord.rp : null,
-      cp: Number.isFinite(targetRecord.cp) ? targetRecord.cp : null,
-      rs: Number.isFinite(targetRecord.rs) ? targetRecord.rs : null,
-      cs: Number.isFinite(targetRecord.cs) ? targetRecord.cs : null,
+      rp: toFiniteOrNull(targetRecord.rp),
+      cp: toFiniteOrNull(targetRecord.cp),
+      rs: toFiniteOrNull(targetRecord.rs),
+      cs: toFiniteOrNull(targetRecord.cs),
     },
     freqHz: Number.isFinite(targetRecord.freqHz) ? targetRecord.freqHz : null,
     level: Number.isFinite(targetRecord.level) ? targetRecord.level : null,

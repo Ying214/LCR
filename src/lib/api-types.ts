@@ -1,7 +1,9 @@
 import type {
   BaselineProfile,
+  MeasurementDatasetMetadata,
   MeasurementDatasetWithRelations,
   MeasurementFilterOptions,
+  MeasurementOcrMetadata,
 } from "@/lib/types";
 
 export type CreateBaselinePayload = {
@@ -22,16 +24,17 @@ export type CreateMeasurementRecordPayload = {
   indexNo: number;
   freqHz: number;
   level: number;
-  rp: number;
-  cp: number;
-  rs: number;
-  cs: number;
+  rp: number | null;
+  cp: number | null;
+  rs: number | null;
+  cs: number | null;
 };
 
 export type CreateMeasurementDatasetPayload = {
   datasetName: string;
   conditionLabel: string;
   note?: string;
+  metadata?: MeasurementDatasetMetadata | null;
   baselineId?: string | null;
   records: CreateMeasurementRecordPayload[];
 };
@@ -46,10 +49,10 @@ export type UpdateMeasurementDatasetPayload = {
 export type UpdateMeasurementRecordPayload = {
   freqHz?: number;
   level?: number;
-  rp?: number;
-  cp?: number;
-  rs?: number;
-  cs?: number;
+  rp?: number | null;
+  cp?: number | null;
+  rs?: number | null;
+  cs?: number | null;
 };
 
 export type BaselineListResponse = {
@@ -82,6 +85,8 @@ export type OcrResult = {
   saved_image_paths?: string[];
 };
 
+export type OcrMetadata = MeasurementOcrMetadata;
+
 export type OcrServiceResponse = {
   filename: string;
   result_count: number;
@@ -91,5 +96,6 @@ export type OcrServiceResponse = {
   saved_upload_path?: string;
   saved_json_paths?: string[];
   saved_image_paths?: string[];
+  ocrMetadata?: OcrMetadata;
   results: OcrResult[];
 };

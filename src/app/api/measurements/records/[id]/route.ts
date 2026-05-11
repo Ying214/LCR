@@ -13,6 +13,17 @@ function toNonNegativeNumber(value: unknown): number | null {
   return parsed;
 }
 
+function toNullableNumber(value: unknown): number | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+  return parsed;
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
@@ -21,13 +32,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     const data: {
       freqHz?: number;
       level?: number;
-      rp?: number;
-      cp?: number;
-      rs?: number;
-      cs?: number;
+      rp?: number | null;
+      cp?: number | null;
+      rs?: number | null;
+      cs?: number | null;
     } = {};
 
-    const assignIfDefined = <T extends keyof typeof data>(field: T, value: unknown, label: string) => {
+    const assignNonNegativeIfDefined = <T extends "freqHz" | "level">(field: T, value: unknown, label: string) => {
       if (value === undefined) {
         return null;
       }
@@ -39,27 +50,43 @@ export async function PATCH(request: Request, context: RouteContext) {
       return null;
     };
 
-    const freqError = assignIfDefined("freqHz", body.freqHz, "FREQ");
+    const assignNullableIfDefined = <T extends "rp" | "cp" | "rs" | "cs">(
+      field: T,
+      value: unknown,
+      label: string,
+    ) => {
+      if (value === undefined) {
+        return null;
+      }
+      const parsed = toNullableNumber(value);
+      if (parsed === undefined) {
+        return `${label} 必須為有效數值。`;
+      }
+      data[field] = parsed;
+      return null;
+    };
+
+    const freqError = assignNonNegativeIfDefined("freqHz", body.freqHz, "FREQ");
     if (freqError) {
       return NextResponse.json({ message: freqError }, { status: 400 });
     }
-    const levelError = assignIfDefined("level", body.level, "LEVEL");
+    const levelError = assignNonNegativeIfDefined("level", body.level, "LEVEL");
     if (levelError) {
       return NextResponse.json({ message: levelError }, { status: 400 });
     }
-    const rpError = assignIfDefined("rp", body.rp, "Rp");
+    const rpError = assignNullableIfDefined("rp", body.rp, "Rp");
     if (rpError) {
       return NextResponse.json({ message: rpError }, { status: 400 });
     }
-    const cpError = assignIfDefined("cp", body.cp, "Cp");
+    const cpError = assignNullableIfDefined("cp", body.cp, "Cp");
     if (cpError) {
       return NextResponse.json({ message: cpError }, { status: 400 });
     }
-    const rsError = assignIfDefined("rs", body.rs, "Rs");
+    const rsError = assignNullableIfDefined("rs", body.rs, "Rs");
     if (rsError) {
       return NextResponse.json({ message: rsError }, { status: 400 });
     }
-    const csError = assignIfDefined("cs", body.cs, "Cs");
+    const csError = assignNullableIfDefined("cs", body.cs, "Cs");
     if (csError) {
       return NextResponse.json({ message: csError }, { status: 400 });
     }
@@ -126,4 +153,3 @@ export async function DELETE(_: Request, context: RouteContext) {
     return NextResponse.json({ message: "刪除 record 失敗。" }, { status: 500 });
   }
 }
-

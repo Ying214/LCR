@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 
 import type { CreateMeasurementDatasetPayload } from "@/lib/api-types";
 import { prisma } from "@/lib/prisma";
@@ -9,6 +10,13 @@ function toNumber(value: unknown): number | null {
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toInputJsonValue(value: CreateMeasurementDatasetPayload["metadata"]): Prisma.InputJsonValue | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return value as Prisma.InputJsonValue;
 }
 
 export async function GET(request: Request) {
@@ -70,6 +78,7 @@ export async function POST(request: Request) {
           datasetName: body.datasetName.trim(),
           conditionLabel: body.conditionLabel?.trim() ?? "",
           note: body.note?.trim() || null,
+          metadata: toInputJsonValue(body.metadata),
           baselineId: body.baselineId || null,
         },
       });
