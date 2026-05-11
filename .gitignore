@@ -50,6 +50,7 @@ prisma/dev.db
 *.db-journal
 
 # OCR runtime data
+/servers/ocr/data/
 servers/ocr/data/uploads/
 servers/ocr/data/images/
 servers/ocr/data/json/
