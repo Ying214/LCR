@@ -42,10 +42,10 @@ type SingleParameterTrendChartProps = {
 type TrendSeriesLike = {
   datasetId: string;
   indexNo: number;
-  rp: number;
-  cp: number;
-  rs: number;
-  cs: number;
+  rp: number | null;
+  cp: number | null;
+  rs: number | null;
+  cs: number | null;
   avgRp: number;
   avgCp: number;
   avgRs: number;
@@ -70,10 +70,10 @@ function isTrendSeriesLike(value: unknown): value is TrendSeriesLike {
   return (
     typeof point.datasetId === "string" &&
     typeof point.indexNo === "number" &&
-    typeof point.rp === "number" &&
-    typeof point.cp === "number" &&
-    typeof point.rs === "number" &&
-    typeof point.cs === "number"
+    (typeof point.rp === "number" || point.rp === null) &&
+    (typeof point.cp === "number" || point.cp === null) &&
+    (typeof point.rs === "number" || point.rs === null) &&
+    (typeof point.cs === "number" || point.cs === null)
   );
 }
 
@@ -195,7 +195,9 @@ export function SingleParameterTrendChart({
     selectedIndexNo === null ? null : data.find((point) => point.indexNo === selectedIndexNo) ?? null;
 
   const yDomain = useMemo<[number, number]>(() => {
-    const values = data.map((point) => point[parameter]);
+    const values = data
+      .map((point) => point[parameter])
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
     const averageValue = data[0]?.[averageKey];
     const baselineValue = data[0]?.[baselineKey] ?? null;
 
@@ -204,6 +206,10 @@ export function SingleParameterTrendChart({
     }
     if (baselineValue !== null && Number.isFinite(baselineValue)) {
       values.push(baselineValue);
+    }
+
+    if (values.length === 0) {
+      return [0, 1];
     }
 
     const rawMin = Math.min(...values);
@@ -215,7 +221,9 @@ export function SingleParameterTrendChart({
   }, [averageKey, baselineKey, data, parameter]);
 
   const displayConfig = useMemo(() => {
-    const candidateValues: number[] = [...data.map((point) => point[parameter])];
+    const candidateValues: number[] = data
+      .map((point) => point[parameter])
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
     const averageValue = data[0]?.[averageKey];
     const baselineValue = data[0]?.[baselineKey] ?? null;
 
@@ -226,7 +234,7 @@ export function SingleParameterTrendChart({
       candidateValues.push(baselineValue);
     }
 
-    const maxAbs = Math.max(...candidateValues.map((value) => Math.abs(value)));
+    const maxAbs = candidateValues.length > 0 ? Math.max(...candidateValues.map((value) => Math.abs(value))) : 1;
     return getDisplayConfig(parameter, maxAbs);
   }, [averageKey, baselineKey, data, parameter]);
 
@@ -277,6 +285,7 @@ export function SingleParameterTrendChart({
   const baselineValue = data[0][baselineKey];
   const averageValue = data[0][averageKey];
   const trialOpacity = selectedIndexNo === null ? 0.45 : 0.2;
+  const selectedPointValue = selectedPoint ? selectedPoint[parameter] : null;
 
   const renderTooltip = ({ active, payload }: TooltipContentProps) => {
     if (!active || !payload || payload.length === 0) {
@@ -292,9 +301,13 @@ export function SingleParameterTrendChart({
     const avgValue = point[averageKey];
     const baseValue = point[baselineKey] ?? null;
 
-    const deltaAvg = currentValue - avgValue;
-    const deltaBase = baseValue === null ? null : currentValue - baseValue;
-    const deltaAvgPercent = buildDeltaPercent(deltaAvg, avgValue);
+    const hasCurrent = typeof currentValue === "number" && Number.isFinite(currentValue);
+    const hasAverage = typeof avgValue === "number" && Number.isFinite(avgValue);
+    const hasBaseline = typeof baseValue === "number" && Number.isFinite(baseValue);
+
+    const deltaAvg = hasCurrent && hasAverage ? currentValue - avgValue : null;
+    const deltaBase = hasCurrent && hasBaseline ? currentValue - baseValue : null;
+    const deltaAvgPercent = deltaAvg === null ? null : buildDeltaPercent(deltaAvg, avgValue);
     const deltaBasePercent = deltaBase === null ? null : buildDeltaPercent(deltaBase, baseValue);
 
     return (
@@ -311,7 +324,7 @@ export function SingleParameterTrendChart({
           <p>
             ΔAVG:{" "}
             <span className="font-mono font-medium">
-              {formatDeltaValue(parameter, deltaAvg)} ({formatDeltaPercent(deltaAvgPercent)})
+              {deltaAvg === null ? "--" : `${formatDeltaValue(parameter, deltaAvg)} (${formatDeltaPercent(deltaAvgPercent)})`}
             </span>
           </p>
           <p>
@@ -350,7 +363,7 @@ export function SingleParameterTrendChart({
       </div>
 
       <ChartMountGuard className="h-[420px] min-h-[420px]">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
+        <ResponsiveContainer width="100%" height={420} minWidth={0} minHeight={420}>
           <LineChart data={data} margin={{ top: 18, right: 28, left: 28, bottom: 14 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="indexNo" label={{ value: "筆數", position: "insideBottom", offset: -4 }} />
@@ -413,10 +426,10 @@ export function SingleParameterTrendChart({
               <ReferenceLine x={selectedIndexNo} stroke="#0f172a" strokeDasharray="3 3" />
             ) : null}
 
-            {selectedPoint ? (
+            {selectedPoint && typeof selectedPointValue === "number" ? (
               <ReferenceDot
                 x={selectedPoint.indexNo}
-                y={selectedPoint[parameter]}
+                y={selectedPointValue}
                 r={7}
                 fill={color}
                 stroke="#0f172a"

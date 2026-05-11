@@ -181,13 +181,18 @@ export function TrendOverviewMultiAxisChart({
       : null;
 
     const scales = AXIS_ORDER.reduce<Record<ParameterKey, AxisScale>>((acc, parameter) => {
-      const values = data.map((point) => point[parameter]);
+      const values = data
+        .map((point) => point[parameter])
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
       if (average) {
         values.push(average[parameter]);
       }
       const baselineValue = baseline?.[parameter] ?? null;
       if (isFiniteNumber(baselineValue)) {
         values.push(baselineValue);
+      }
+      if (values.length === 0) {
+        values.push(0);
       }
       const maxAbs = Math.max(...values.map((value) => Math.abs(value)));
       const unit = getUnit(parameter, maxAbs);
@@ -207,20 +212,26 @@ export function TrendOverviewMultiAxisChart({
 
   const trialLines = useMemo(
     () =>
-      data.map((point) => {
+      data
+        .map((point) => {
+        const allFinite = AXIS_ORDER.every((parameter) => isFiniteNumber(point[parameter]));
+        if (!allFinite) {
+          return null;
+        }
         const visible = visibleIndexSet === null || visibleIndexSet.has(point.indexNo);
         const points = AXIS_ORDER.map((parameter) => {
           const x = drawing.xByParameter[parameter];
-          const y = drawing.scales[parameter].toY(point[parameter]);
+          const y = drawing.scales[parameter].toY(point[parameter] as number);
           return `${x},${y}`;
         }).join(" ");
         const circles = AXIS_ORDER.map((parameter) => ({
           parameter,
           x: drawing.xByParameter[parameter],
-          y: drawing.scales[parameter].toY(point[parameter]),
+          y: drawing.scales[parameter].toY(point[parameter] as number),
         }));
         return { point, points, circles, visible };
-      }),
+      })
+        .filter((line): line is { point: (typeof data)[number]; points: string; circles: Array<{ parameter: ParameterKey; x: number; y: number }>; visible: boolean } => line !== null),
     [data, drawing, visibleIndexSet],
   );
 
@@ -271,6 +282,9 @@ export function TrendOverviewMultiAxisChart({
     }
 
     const anchorX = drawing.xByParameter.rp;
+    if (!isFiniteNumber(selectedPoint.rp)) {
+      return null;
+    }
     const anchorY = drawing.scales.rp.toY(selectedPoint.rp);
     const cardWidth = 246;
     const cardHeight = 136;

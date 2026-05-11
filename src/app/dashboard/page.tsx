@@ -33,6 +33,10 @@ import { MeasurementFilterBar } from "@/components/measurements/MeasurementFilte
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+function getTotalRecordCount(datasets: MeasurementDatasetWithRelations[]): number {
+  return datasets.reduce((sum, dataset) => sum + dataset.records.length, 0);
+}
+
 export default function DashboardPage() {
   const [datasets, setDatasets] = useState<MeasurementDatasetWithRelations[]>([]);
   const [baselines, setBaselines] = useState<BaselineListResponse["data"]>([]);
@@ -76,11 +80,25 @@ export default function DashboardPage() {
   const fetchDatasets = useCallback(
     async (filters = DEFAULT_MEASUREMENT_FILTER) => {
       setLoading(true);
+      const params = toSearchParams(filters);
+      const requestUrl = `/api/measurements?${params.toString()}`;
       try {
-        const params = toSearchParams(filters);
-        const response = await fetch(`/api/measurements?${params.toString()}`);
+        const response = await fetch(requestUrl);
+        if (!response.ok) {
+          console.error("fetchDatasets response not ok", {
+            requestUrl,
+            status: response.status,
+          });
+          return;
+        }
         const json = (await response.json()) as MeasurementDatasetListResponse;
-        setDatasets(json.data);
+        const nextDatasets = Array.isArray(json?.data) ? json.data : [];
+        setDatasets(nextDatasets);
+      } catch (error) {
+        console.error("fetchDatasets request failed", {
+          requestUrl,
+          error,
+        });
       } finally {
         setLoading(false);
       }
@@ -89,18 +107,45 @@ export default function DashboardPage() {
   );
 
   const fetchBaselines = useCallback(async () => {
-    const response = await fetch("/api/baselines");
-    const json = (await response.json()) as BaselineListResponse;
-    setBaselines(json.data);
+    const requestUrl = "/api/baselines";
+    try {
+      const response = await fetch(requestUrl);
+      if (!response.ok) {
+        console.error("fetchBaselines response not ok", {
+          requestUrl,
+          status: response.status,
+        });
+        return;
+      }
+      const json = (await response.json()) as BaselineListResponse;
+      setBaselines(json.data);
+    } catch (error) {
+      console.error("fetchBaselines request failed", {
+        requestUrl,
+        error,
+      });
+    }
   }, []);
 
   const fetchOptions = useCallback(async () => {
-    const response = await fetch("/api/measurements/options");
-    if (!response.ok) {
-      return;
+    const requestUrl = "/api/measurements/options";
+    try {
+      const response = await fetch(requestUrl);
+      if (!response.ok) {
+        console.error("fetchOptions response not ok", {
+          requestUrl,
+          status: response.status,
+        });
+        return;
+      }
+      const json = (await response.json()) as MeasurementFilterOptionsResponse;
+      setFilterOptions(json.data);
+    } catch (error) {
+      console.error("fetchOptions request failed", {
+        requestUrl,
+        error,
+      });
     }
-    const json = (await response.json()) as MeasurementFilterOptionsResponse;
-    setFilterOptions(json.data);
   }, []);
 
   useEffect(() => {
@@ -170,6 +215,7 @@ export default function DashboardPage() {
         : [],
     [trendDataset],
   );
+  const trendDatasetRecordCount = trendDataset?.records.length ?? 0;
 
   useEffect(() => {
     if (!selectedTrendRecord || !trendDataset) {

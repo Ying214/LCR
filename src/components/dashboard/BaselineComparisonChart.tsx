@@ -26,11 +26,17 @@ export function BaselineComparisonChart({
     }
 
     const targetDataset = datasets[0];
+    if (!targetDataset) {
+      return { data: [], hasBaseline: false, unsupported: true };
+    }
     const baselineValue = targetDataset.baseline?.[parameter] ?? null;
     const sortedRecords = [...targetDataset.records].sort((a, b) => a.indexNo - b.indexNo);
+    const values = sortedRecords
+      .map((record) => record[parameter])
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
     const average =
-      sortedRecords.length > 0
-        ? sortedRecords.reduce((sum, record) => sum + record[parameter], 0) / sortedRecords.length
+      values.length > 0
+        ? values.reduce((sum, value) => sum + value, 0) / values.length
         : 0;
 
     return {
@@ -71,7 +77,7 @@ export function BaselineComparisonChart({
 
   return (
     <ChartMountGuard className="h-[320px] min-h-[320px]">
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
+      <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={320}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="indexNo" />

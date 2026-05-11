@@ -9,9 +9,7 @@ import {
   normalizeTargetSource,
   type DatasetCompareTarget,
 } from "@/lib/dataset-compare";
-import { formatLevel } from "@/lib/formatters";
 import type { MeasurementDatasetWithRelations } from "@/lib/types";
-import { formatCapacitance, formatFrequencyWithUnit, formatResistance } from "@/lib/unit-conversion";
 
 import { DatasetCompareCharts } from "@/components/dashboard-compare/DatasetCompareCharts";
 import { DatasetCompareControlPanel } from "@/components/dashboard-compare/DatasetCompareControlPanel";
@@ -28,10 +26,6 @@ export default function DatasetCompareDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [targets, setTargets] = useState<DatasetCompareTarget[]>([]);
   const [reportExportedAt, setReportExportedAt] = useState<string | null>(null);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
-  const [isGeneratingAiSummary, setIsGeneratingAiSummary] = useState(false);
-  const [lastSummaryPayloadKey, setLastSummaryPayloadKey] = useState<string | null>(null);
   const targetCounterRef = useRef(1);
 
   const createTarget = useCallback(
@@ -100,54 +94,6 @@ export default function DatasetCompareDashboardPage() {
     [datasets, targets],
   );
 
-  const summaryComparisonsPayload = useMemo(
-    () =>
-      compareRows.map((row) => ({
-        targetCode: row.targetCode,
-        datasetName: row.datasetName,
-        conditionLabel: row.conditionLabel,
-        sourceLabel: row.sourceLabel,
-        recordCount: row.recordCount,
-        freqHz: {
-          rawValue: row.freqHz,
-          formattedValue: formatFrequencyWithUnit(row.freqHz),
-          baseUnit: "Hz",
-        },
-        level: {
-          rawValue: row.level,
-          formattedValue: row.level === null ? "--" : `${formatLevel(row.level)} V`,
-          baseUnit: "V",
-        },
-        rp: {
-          rawValue: row.values.rp,
-          formattedValue: formatResistance(row.values.rp),
-          baseUnit: "Ω",
-        },
-        cp: {
-          rawValue: row.values.cp,
-          formattedValue: formatCapacitance(row.values.cp),
-          baseUnit: "F",
-        },
-        rs: {
-          rawValue: row.values.rs,
-          formattedValue: formatResistance(row.values.rs),
-          baseUnit: "Ω",
-        },
-        cs: {
-          rawValue: row.values.cs,
-          formattedValue: formatCapacitance(row.values.cs),
-          baseUnit: "F",
-        },
-        missingMessages: row.missingMessages,
-      })),
-    [compareRows],
-  );
-
-  const currentSummaryPayloadKey = useMemo(
-    () => JSON.stringify(summaryComparisonsPayload),
-    [summaryComparisonsPayload],
-  );
-
   const handleAddTarget = () => {
     if (datasets.length === 0) {
       return;
@@ -162,51 +108,6 @@ export default function DatasetCompareDashboardPage() {
       window.print();
     }, 50);
   };
-
-  const handleGenerateAiSummary = useCallback(async () => {
-    setIsGeneratingAiSummary(true);
-    setAiSummaryError(null);
-    try {
-      const response = await fetch("/api/dashboard-compare/summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          comparisons: summaryComparisonsPayload,
-        }),
-      });
-
-      const json = (await response.json().catch(() => null)) as { summary?: string; message?: string } | null;
-      console.log("[dashboard-compare] summary API JSON:", json);
-
-      if (!response.ok) {
-        setAiSummaryError(json?.message ?? "AI 摘要生成失敗，請稍後再試。");
-        setAiSummary(null);
-        return;
-      }
-
-      const summary = json?.summary?.trim() ?? "";
-      console.log("[dashboard-compare] summary length:", summary.length);
-      console.log("[dashboard-compare] summary text:", summary);
-      if (!summary) {
-        setAiSummaryError("AI 未回傳摘要內容，請稍後再試。");
-        setAiSummary(null);
-        return;
-      }
-
-      setAiSummary(summary);
-      setLastSummaryPayloadKey(currentSummaryPayloadKey);
-    } catch {
-      setAiSummaryError("無法呼叫 AI 摘要服務，請稍後再試。");
-      setAiSummary(null);
-    } finally {
-      setIsGeneratingAiSummary(false);
-    }
-  }, [currentSummaryPayloadKey, summaryComparisonsPayload]);
-
-  const isSummaryStale =
-    aiSummary !== null &&
-    lastSummaryPayloadKey !== null &&
-    lastSummaryPayloadKey !== currentSummaryPayloadKey;
 
   const reportExportTimeText = reportExportedAt
     ? new Date(reportExportedAt).toLocaleString("zh-TW")
@@ -253,14 +154,6 @@ export default function DatasetCompareDashboardPage() {
               <DatasetCompareSummary rows={compareRows} />
             </div>
 
-            {aiSummary ? (
-              <div className="report-section mt-4 rounded-md border border-slate-300 bg-slate-50 p-3">
-                <p className="mb-1 text-sm font-semibold text-slate-900">比較摘要</p>
-                <div className="whitespace-pre-wrap break-words leading-relaxed overflow-visible text-sm text-slate-700">
-                  {aiSummary}
-                </div>
-              </div>
-            ) : null}
           </section>
 
           <section className="report-page report-page-break report-chart-section report-section">
@@ -301,40 +194,6 @@ export default function DatasetCompareDashboardPage() {
               <DatasetCompareRangeCharts rows={rangeRows} />
             </SectionCard>
 
-            <SectionCard title="比較摘要">
-              <p className="text-sm text-slate-700">請按下按鈕生成 3-5 句比較摘要。</p>
-              {isSummaryStale ? (
-                <p className="mt-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-800">
-                  資料已更新，可重新生成摘要。
-                </p>
-              ) : null}
-              {aiSummaryError ? (
-                <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  {aiSummaryError}
-                </p>
-              ) : null}
-              {aiSummary ? (
-                <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                  <div className="whitespace-pre-wrap break-words leading-relaxed overflow-visible text-sm text-slate-800">
-                    {aiSummary}
-                  </div>
-                </div>
-              ) : null}
-              <div className="mt-3 flex items-center gap-3">
-                <Button
-                  type="button"
-                  onClick={() => void handleGenerateAiSummary()}
-                  disabled={isGeneratingAiSummary}
-                  className="report-no-print"
-                >
-                  {isGeneratingAiSummary ? "生成中..." : "生成比較摘要"}
-                </Button>
-                {isGeneratingAiSummary ? (
-                  <p className="text-sm text-slate-500">摘要生成中...</p>
-                ) : null}
-              </div>
-            </SectionCard>
-
             <SectionCard title="比較資料表">
               <DatasetCompareSummary rows={compareRows} />
             </SectionCard>
@@ -343,7 +202,7 @@ export default function DatasetCompareDashboardPage() {
               <p className="text-sm text-slate-700">
                 下載目前比較結果報告。按下後會開啟列印視窗，請選擇「另存為 PDF」輸出 A4 直式報告。
               </p>
-              <p className="mt-1 text-xs text-slate-500">報告包含標題、匯出時間、比較對象清單、比較資料表、比較摘要（若有）、多資料比較圖、圖例與單一參數比較圖。</p>
+              <p className="mt-1 text-xs text-slate-500">報告包含標題、匯出時間、比較對象清單、比較資料表、多資料比較圖、圖例與單一參數比較圖。</p>
               <div className="mt-3">
                 <Button type="button" onClick={handleDownloadReportPdf} className="report-no-print">
                   下載比較報告 PDF

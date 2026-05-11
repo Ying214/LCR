@@ -15,19 +15,57 @@ export function ChartMountGuard({ className, fallback, children }: ChartMountGua
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!containerRef.current) {
+    const element = containerRef.current;
+    if (!element) {
       return;
     }
 
-    const observer = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect;
-      const width = rect?.width ?? 0;
-      const height = rect?.height ?? 0;
-      setReady(width > 0 && height > 0);
+    let frameId: number | null = null;
+
+    const evaluateSize = () => {
+      const node = containerRef.current;
+      if (!node) {
+        setReady(false);
+        return;
+      }
+
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      const hasSize = rect.width > 0 && rect.height > 0;
+      const isVisible = style.display !== "none" && style.visibility !== "hidden";
+      const nextReady = hasSize && isVisible;
+
+      if (!nextReady) {
+        if (frameId !== null) {
+          cancelAnimationFrame(frameId);
+          frameId = null;
+        }
+        setReady(false);
+        return;
+      }
+
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+      }
+      frameId = requestAnimationFrame(() => {
+        setReady(true);
+        frameId = null;
+      });
+    };
+
+    const observer = new ResizeObserver(() => {
+      evaluateSize();
     });
 
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    observer.observe(element);
+    evaluateSize();
+
+    return () => {
+      observer.disconnect();
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+      }
+    };
   }, []);
 
   return (
@@ -36,4 +74,3 @@ export function ChartMountGuard({ className, fallback, children }: ChartMountGua
     </div>
   );
 }
-

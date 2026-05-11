@@ -292,7 +292,7 @@ export function ConditionComparisonChart({
       </div>
 
       <ChartMountGuard className="h-[340px] min-h-[340px] rounded-md border border-slate-200 bg-white p-2">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
+        <ResponsiveContainer width="100%" height={340} minWidth={0} minHeight={340}>
           <LineChart data={series} margin={{ top: 16, right: 16, left: 12, bottom: 12 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="conditionLabel" />
