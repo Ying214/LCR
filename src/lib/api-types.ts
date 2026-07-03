@@ -5,6 +5,7 @@ import type {
   MeasurementFilterOptions,
   MeasurementOcrMetadata,
 } from "@/lib/types";
+import type { OcrRecordTracking } from "@/lib/ocr-tracking";
 
 export type CreateBaselinePayload = {
   name: string;
@@ -28,6 +29,19 @@ export type CreateMeasurementRecordPayload = {
   cp: number | null;
   rs: number | null;
   cs: number | null;
+  freqRawValue?: number | null;
+  freqRawUnit?: string | null;
+  levelRawValue?: number | null;
+  levelRawUnit?: string | null;
+  rpRawValue?: number | null;
+  rpRawUnit?: string | null;
+  cpRawValue?: number | null;
+  cpRawUnit?: string | null;
+  rsRawValue?: number | null;
+  rsRawUnit?: string | null;
+  csRawValue?: number | null;
+  csRawUnit?: string | null;
+  ocrTracking?: OcrRecordTracking | null;
 };
 
 export type CreateMeasurementDatasetPayload = {
@@ -36,6 +50,10 @@ export type CreateMeasurementDatasetPayload = {
   note?: string;
   metadata?: MeasurementDatasetMetadata | null;
   baselineId?: string | null;
+  records: CreateMeasurementRecordPayload[];
+};
+
+export type AppendMeasurementRecordsPayload = {
   records: CreateMeasurementRecordPayload[];
 };
 
@@ -97,5 +115,6 @@ export type OcrServiceResponse = {
   saved_json_paths?: string[];
   saved_image_paths?: string[];
   ocrMetadata?: OcrMetadata;
+  ocrAccuracyTrackingEnabled?: boolean;
   results: OcrResult[];
 };

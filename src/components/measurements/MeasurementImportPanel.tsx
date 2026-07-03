@@ -5,6 +5,8 @@ import { useMemo, useState, type FormEvent } from "react";
 
 import type { OcrMetadata, OcrServiceResponse } from "@/lib/api-types";
 import { extractMeasurementRecordsFromOcr } from "@/lib/ocr-parser";
+import type { OcrInitialSnapshot } from "@/lib/ocr-tracking";
+import { capacitanceToFarad, frequencyToHz, resistanceToOhm } from "@/lib/unit-conversion";
 import { cn } from "@/lib/utils";
 
 import type { ManualMeasurementRow } from "@/components/measurements/MeasurementManualTable";
@@ -20,6 +22,7 @@ type MeasurementImportPanelProps = {
     options?: {
       datasetNameSuggestion?: string;
       ocrMetadata?: OcrMetadata | null;
+      serverTrackingEnabled?: boolean;
     },
   ) => void;
 };
@@ -70,13 +73,6 @@ function buildDatasetNameSuggestion(originalFilename: string | null, uploadedAt?
   return `${timestamp}_${baseName}`;
 }
 
-function formatAverageScore(value: number | null): string {
-  if (value === null) {
-    return "-";
-  }
-  return value.toFixed(4);
-}
-
 function resolveAverageScore(ocrResponse: OcrServiceResponse | null): number | null {
   if (!ocrResponse) {
     return null;
@@ -122,29 +118,81 @@ function getConfidenceState(score: number | null): OcrConfidenceState {
   };
 }
 
-function buildManualRows(ocrResponse: OcrServiceResponse): ManualMeasurementRow[] {
+function parseSnapshotNumber(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildInitialSnapshot(row: ManualMeasurementRow): OcrInitialSnapshot | null {
+  const snapshot: OcrInitialSnapshot = {};
+  const freqValue = parseSnapshotNumber(row.freqHz);
+  const levelValue = parseSnapshotNumber(row.level);
+  const rpValue = parseSnapshotNumber(row.rp);
+  const cpValue = parseSnapshotNumber(row.cp);
+  const rsValue = parseSnapshotNumber(row.rs);
+  const csValue = parseSnapshotNumber(row.cs);
+
+  if (freqValue !== null) {
+    snapshot.freqHz = frequencyToHz(freqValue, row.freqUnit);
+  }
+  if (levelValue !== null) {
+    snapshot.level = levelValue;
+  }
+  if (rpValue !== null) {
+    snapshot.rp = resistanceToOhm(rpValue, row.rpUnit);
+  }
+  if (cpValue !== null) {
+    snapshot.cp = capacitanceToFarad(cpValue, row.cpUnit);
+  }
+  if (rsValue !== null) {
+    snapshot.rs = resistanceToOhm(rsValue, row.rsUnit);
+  }
+  if (csValue !== null) {
+    snapshot.cs = capacitanceToFarad(csValue, row.csUnit);
+  }
+
+  return Object.keys(snapshot).length > 0 ? snapshot : null;
+}
+
+function buildManualRows(
+  ocrResponse: OcrServiceResponse,
+  enableTracking: boolean,
+): ManualMeasurementRow[] {
   const parsedRows = extractMeasurementRecordsFromOcr(ocrResponse);
-  return parsedRows.map((row) => ({
-    rowId: `ocr-row-${Date.now()}-${Math.random()}`,
-    freqHz: row.freqHz,
-    level: row.level,
-    rp: row.rp,
-    cp: row.cp,
-    rs: row.rs,
-    cs: row.cs,
-    fromOcr: true,
-    freqUnit: row.freqUnit,
-    rpUnit: row.rpUnit,
-    cpUnit: row.cpUnit,
-    rsUnit: row.rsUnit,
-    csUnit: row.csUnit,
-    freqScore: row.freqScore,
-    levelScore: row.levelScore,
-    rpScore: row.rpScore,
-    cpScore: row.cpScore,
-    rsScore: row.rsScore,
-    csScore: row.csScore,
-  }));
+  return parsedRows.map((row) => {
+    const manualRow: ManualMeasurementRow = {
+      rowId: `ocr-row-${Date.now()}-${Math.random()}`,
+      freqHz: row.freqHz,
+      level: row.level,
+      rp: row.rp,
+      cp: row.cp,
+      rs: row.rs,
+      cs: row.cs,
+      fromOcr: true,
+      freqUnit: row.freqUnit,
+      rpUnit: row.rpUnit,
+      cpUnit: row.cpUnit,
+      rsUnit: row.rsUnit,
+      csUnit: row.csUnit,
+      freqScore: row.freqScore,
+      levelScore: row.levelScore,
+      rpScore: row.rpScore,
+      cpScore: row.cpScore,
+      rsScore: row.rsScore,
+      csScore: row.csScore,
+      ocrInitialSnapshot: null,
+    };
+
+    if (enableTracking) {
+      manualRow.ocrInitialSnapshot = buildInitialSnapshot(manualRow);
+    }
+
+    return manualRow;
+  });
 }
 
 function getDebugImage(ocrResponse: OcrServiceResponse | null): string | null {
@@ -286,7 +334,8 @@ export function MeasurementImportPanel({ onApplyRows }: MeasurementImportPanelPr
       }
 
       const nextResponse = json as OcrServiceResponse;
-      const rows = buildManualRows(nextResponse);
+      const trackingEnabled = nextResponse.ocrAccuracyTrackingEnabled ?? true;
+      const rows = buildManualRows(nextResponse, trackingEnabled);
       const ocrMetadata = nextResponse.ocrMetadata ?? null;
       const datasetNameSuggestion =
         ocrMetadata?.datasetNameSuggestion ?? buildDatasetNameSuggestion(selectedFile.name, new Date());
@@ -299,7 +348,11 @@ export function MeasurementImportPanel({ onApplyRows }: MeasurementImportPanelPr
       }
 
       setOcrRows(rows);
-      onApplyRows(rows, { datasetNameSuggestion, ocrMetadata });
+      onApplyRows(rows, {
+        datasetNameSuggestion,
+        ocrMetadata,
+        serverTrackingEnabled: trackingEnabled,
+      });
       setSuccessMessage(`已從 OCR 匯入 ${rows.length} 筆，請在下方表格確認並可手動修改。`);
       setSelectedFile(null);
       setFileInputKey((prev) => prev + 1);
@@ -352,10 +405,8 @@ export function MeasurementImportPanel({ onApplyRows }: MeasurementImportPanelPr
 
       {ocrResponse ? (
         <div className={cn("rounded-md border px-3 py-2 text-sm", confidenceState.className)}>
-          <p className="font-medium">
-            OCR 信心度：{formatAverageScore(averageScore)}（{confidenceState.label}）
-          </p>
-          <p className="mt-1 text-xs">{confidenceState.description}</p>
+          <p className="font-medium">{confidenceState.description}</p>
+          <p className="mt-1 text-xs">品質等級：{confidenceState.label}</p>
           {issueSummary.missingValues.length > 0 ? (
             <p className="mt-2 text-xs text-rose-700">
               以下欄位缺少辨識值，請優先檢查：{issueSummary.missingValues.join("、")}

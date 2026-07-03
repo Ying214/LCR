@@ -71,6 +71,18 @@ export type MeasurementRecord = {
   cp: number | null;
   rs: number | null;
   cs: number | null;
+  freqRawValue: number | null;
+  freqRawUnit: string | null;
+  levelRawValue: number | null;
+  levelRawUnit: string | null;
+  rpRawValue: number | null;
+  rpRawUnit: string | null;
+  cpRawValue: number | null;
+  cpRawUnit: string | null;
+  rsRawValue: number | null;
+  rsRawUnit: string | null;
+  csRawValue: number | null;
+  csRawUnit: string | null;
   createdAt: string;
 };
 

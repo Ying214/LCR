@@ -7,10 +7,11 @@ import { cn } from "@/lib/utils";
 type ChartMountGuardProps = {
   className?: string;
   fallback?: ReactNode;
+  forceRender?: boolean;
   children: ReactNode;
 };
 
-export function ChartMountGuard({ className, fallback, children }: ChartMountGuardProps) {
+export function ChartMountGuard({ className, fallback, forceRender = false, children }: ChartMountGuardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -70,7 +71,7 @@ export function ChartMountGuard({ className, fallback, children }: ChartMountGua
 
   return (
     <div ref={containerRef} className={cn("w-full min-w-0", className)}>
-      {ready ? children : (fallback ?? <div className="h-full w-full" />)}
+      {forceRender || ready ? children : (fallback ?? <div className="h-full w-full" />)}
     </div>
   );
 }

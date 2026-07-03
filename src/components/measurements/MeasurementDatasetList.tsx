@@ -3,11 +3,19 @@
 import { Fragment, useState } from "react";
 
 import type { MeasurementDatasetWithRelations, MeasurementRecord } from "@/lib/types";
-import { formatDateTime, formatLevel } from "@/lib/formatters";
-import { formatCapacitance, formatFrequencyWithUnit, formatResistance } from "@/lib/unit-conversion";
+import { formatDateTime } from "@/lib/formatters";
+import type { OcrRecordTracking } from "@/lib/ocr-tracking";
+import { summarizeOcrTracking } from "@/lib/ocr-tracking";
+import {
+  formatDisplayCapacitance,
+  formatDisplayFrequency,
+  formatDisplayLevel,
+  formatDisplayResistance,
+} from "@/lib/unit-conversion";
 
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useAppSettings } from "@/components/settings/SettingsProvider";
 
 type MeasurementDatasetListProps = {
   datasets: MeasurementDatasetWithRelations[];
@@ -54,8 +62,14 @@ export function MeasurementDatasetList({
   onEditRecord,
   onDeleteRecord,
 }: MeasurementDatasetListProps) {
+  const { settings, effectiveOcrAccuracyTrackingEnabled } = useAppSettings();
   const [ocrImageModeByDataset, setOcrImageModeByDataset] = useState<Record<string, OcrImageMode>>({});
   const [ocrImageExpandedByDataset, setOcrImageExpandedByDataset] = useState<Record<string, boolean>>({});
+
+  const getRecordTracking = (record: MeasurementRecord): OcrRecordTracking | null => {
+    const candidate = (record as MeasurementRecord & { ocrTracking?: OcrRecordTracking | null }).ocrTracking;
+    return candidate ?? null;
+  };
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200">
@@ -95,6 +109,11 @@ export function MeasurementDatasetList({
                 ? null
                 : `/api/measurements/${dataset.id}/ocr-image?kind=${selectedImageKind}`;
             const imageExpanded = Boolean(ocrImageExpandedByDataset[dataset.id]);
+            const trackingSummary = summarizeOcrTracking(
+              dataset.records as Array<{ ocrTracking?: OcrRecordTracking | null }>,
+            );
+            const showTrackingSummary =
+              effectiveOcrAccuracyTrackingEnabled && trackingSummary.trackedRecordCount > 0;
 
             return (
               <Fragment key={dataset.id}>
@@ -190,6 +209,21 @@ export function MeasurementDatasetList({
                           </div>
                         ) : null}
 
+                        {showTrackingSummary ? (
+                          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-sm font-semibold text-slate-800">
+                              OCR 準確率：{((trackingSummary.accuracyRate ?? 0) * 100).toFixed(1)}%
+                            </p>
+                            <p className="text-xs text-slate-500">正確筆數：{trackingSummary.correctRecordCount} / {trackingSummary.trackedRecordCount}</p>
+                            <p className="mt-1 text-xs text-slate-600">
+                              錯誤筆數：{trackingSummary.incorrectRecordCount}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-600">
+                              只要任一 OCR 預填欄位經人工修改，該筆即視為辨識錯誤。
+                            </p>
+                          </div>
+                        ) : null}
+
                         <div className="rounded-md border border-slate-200 bg-white p-3">
                           <p className="mb-2 text-sm font-semibold text-slate-800">量測明細</p>
                           <div className="overflow-auto rounded-md border border-slate-200">
@@ -198,11 +232,12 @@ export function MeasurementDatasetList({
                                 <TableRow>
                                   <TableHead>筆數</TableHead>
                                   <TableHead>FREQ</TableHead>
-                                  <TableHead>LEVEL (V)</TableHead>
+                                  <TableHead>LEVEL</TableHead>
                                   <TableHead>Rp</TableHead>
                                   <TableHead>Cp</TableHead>
                                   <TableHead>Rs</TableHead>
                                   <TableHead>Cs</TableHead>
+                                  {effectiveOcrAccuracyTrackingEnabled ? <TableHead>OCR 準確率</TableHead> : null}
                                   <TableHead>操作</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -210,12 +245,25 @@ export function MeasurementDatasetList({
                                 {dataset.records.map((record) => (
                                   <TableRow key={record.id}>
                                     <TableCell className="font-mono">{record.indexNo}</TableCell>
-                                    <TableCell className="font-mono">{formatFrequencyWithUnit(record.freqHz)}</TableCell>
-                                    <TableCell className="font-mono">{formatLevel(record.level)} V</TableCell>
-                                    <TableCell className="font-mono">{formatResistance(record.rp)}</TableCell>
-                                    <TableCell className="font-mono">{formatCapacitance(record.cp)}</TableCell>
-                                    <TableCell className="font-mono">{formatResistance(record.rs)}</TableCell>
-                                    <TableCell className="font-mono">{formatCapacitance(record.cs)}</TableCell>
+                                    <TableCell className="font-mono">{formatDisplayFrequency(record, settings.displayMode)}</TableCell>
+                                    <TableCell className="font-mono">{formatDisplayLevel(record, settings.displayMode)}</TableCell>
+                                    <TableCell className="font-mono">{formatDisplayResistance(record, "rp", settings.displayMode)}</TableCell>
+                                    <TableCell className="font-mono">{formatDisplayCapacitance(record, "cp", settings.displayMode)}</TableCell>
+                                    <TableCell className="font-mono">{formatDisplayResistance(record, "rs", settings.displayMode)}</TableCell>
+                                    <TableCell className="font-mono">{formatDisplayCapacitance(record, "cs", settings.displayMode)}</TableCell>
+                                    {effectiveOcrAccuracyTrackingEnabled ? (
+                                      <TableCell className="font-mono text-xs text-slate-600">
+                                        {(() => {
+                                          const tracking = getRecordTracking(record);
+                                          if (!tracking) {
+                                            return "--";
+                                          }
+                                          return tracking.correctedFieldCount === 0
+                                            ? `正確（${tracking.trackedFieldCount} 欄）`
+                                            : `錯誤（修正 ${tracking.correctedFieldCount} 欄）`;
+                                        })()}
+                                      </TableCell>
+                                    ) : null}
                                     <TableCell>
                                       <div className="flex gap-1.5">
                                         <Button

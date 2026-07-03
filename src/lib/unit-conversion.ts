@@ -1,5 +1,6 @@
-import type { CapacitanceUnit, FrequencyUnit, ResistanceUnit } from "@/lib/types";
+import type { CapacitanceUnit, FrequencyUnit, MeasurementRecord, ResistanceUnit } from "@/lib/types";
 import { formatNumber } from "@/lib/formatters";
+import type { DisplayMode } from "@/lib/app-settings";
 
 export const RESISTANCE_UNIT_FACTORS: Record<ResistanceUnit, number> = {
   ohm: 1,
@@ -132,4 +133,182 @@ export function formatFrequencyWithUnit(valueInHz: number | null | undefined): s
     return `${formatNumber(valueInHz / FREQUENCY_UNIT_FACTORS.khz, 3)} kHz`;
   }
   return `${formatNumber(valueInHz, 3)} Hz`;
+}
+
+function formatResistanceStandard(valueInOhm: number | null | undefined): string {
+  if (valueInOhm === null || valueInOhm === undefined || Number.isNaN(valueInOhm)) {
+    return "--";
+  }
+  return `${formatNumber(valueInOhm, 6)} Ω`;
+}
+
+function formatCapacitanceStandard(valueInFarad: number | null | undefined): string {
+  if (valueInFarad === null || valueInFarad === undefined || Number.isNaN(valueInFarad)) {
+    return "--";
+  }
+  return `${formatNumber(valueInFarad, 6)} F`;
+}
+
+function formatFrequencyStandard(valueInHz: number | null | undefined): string {
+  if (valueInHz === null || valueInHz === undefined || Number.isNaN(valueInHz)) {
+    return "--";
+  }
+  return `${formatNumber(valueInHz, 3)} Hz`;
+}
+
+export function formatResistanceByMode(
+  valueInOhm: number | null | undefined,
+  mode: DisplayMode,
+): string {
+  return mode === "standard"
+    ? formatResistanceStandard(valueInOhm)
+    : formatResistance(valueInOhm);
+}
+
+export function formatCapacitanceByMode(
+  valueInFarad: number | null | undefined,
+  mode: DisplayMode,
+): string {
+  if (mode === "standard") {
+    // Standard mode keeps normalized storage/calculation in F,
+    // but display uses engineering units for readability (pF/nF/uF/...).
+    return formatCapacitance(valueInFarad);
+  }
+  return formatCapacitance(valueInFarad);
+}
+
+export function formatFrequencyByMode(
+  valueInHz: number | null | undefined,
+  mode: DisplayMode,
+): string {
+  return mode === "standard"
+    ? formatFrequencyStandard(valueInHz)
+    : formatFrequencyWithUnit(valueInHz);
+}
+
+export function formatLevelByMode(
+  valueInVolt: number | null | undefined,
+  mode: DisplayMode,
+): string {
+  if (valueInVolt === null || valueInVolt === undefined || Number.isNaN(valueInVolt)) {
+    return "--";
+  }
+  if (mode === "standard") {
+    return `${formatNumber(valueInVolt, 6)} V`;
+  }
+  const absolute = Math.abs(valueInVolt);
+  if (absolute > 0 && absolute < 1) {
+    return `${formatNumber(valueInVolt * 1e3, 6)} mV`;
+  }
+  return `${formatNumber(valueInVolt, 6)} V`;
+}
+
+const RAW_UNIT_LABEL_MAP: Record<string, string> = {
+  hz: "Hz",
+  khz: "kHz",
+  v: "V",
+  mv: "mV",
+  ohm: "Ω",
+  kohm: "kΩ",
+  mohm: "MΩ",
+  f: "F",
+  mf: "mF",
+  uf: "uF",
+  nf: "nF",
+  pf: "pF",
+};
+
+function formatRawValueWithUnit(
+  rawValue: number | null | undefined,
+  rawUnit: string | null | undefined,
+): string | null {
+  if (rawValue === null || rawValue === undefined || Number.isNaN(rawValue)) {
+    return null;
+  }
+  const normalizedUnit = rawUnit?.trim();
+  if (!normalizedUnit) {
+    return null;
+  }
+  const unitLabel = RAW_UNIT_LABEL_MAP[normalizedUnit.toLowerCase()] ?? normalizedUnit;
+  return `${formatNumber(rawValue, 6)} ${unitLabel}`;
+}
+
+type DisplayRecord = Pick<
+  MeasurementRecord,
+  | "freqHz"
+  | "level"
+  | "rp"
+  | "cp"
+  | "rs"
+  | "cs"
+  | "freqRawValue"
+  | "freqRawUnit"
+  | "levelRawValue"
+  | "levelRawUnit"
+  | "rpRawValue"
+  | "rpRawUnit"
+  | "cpRawValue"
+  | "cpRawUnit"
+  | "rsRawValue"
+  | "rsRawUnit"
+  | "csRawValue"
+  | "csRawUnit"
+>;
+
+export function formatDisplayFrequency(record: DisplayRecord, mode: DisplayMode): string {
+  if (mode === "friendly") {
+    const raw = formatRawValueWithUnit(record.freqRawValue, record.freqRawUnit);
+    if (raw) {
+      return raw;
+    }
+  }
+  return formatFrequencyByMode(record.freqHz, mode);
+}
+
+export function formatDisplayLevel(record: DisplayRecord, mode: DisplayMode): string {
+  if (mode === "friendly") {
+    const raw = formatRawValueWithUnit(record.levelRawValue, record.levelRawUnit);
+    if (raw) {
+      return raw;
+    }
+  }
+  return formatLevelByMode(record.level, mode);
+}
+
+export function formatDisplayResistance(
+  record: DisplayRecord,
+  parameter: "rp" | "rs",
+  mode: DisplayMode,
+): string {
+  if (mode === "friendly") {
+    const raw =
+      parameter === "rp"
+        ? formatRawValueWithUnit(record.rpRawValue, record.rpRawUnit)
+        : formatRawValueWithUnit(record.rsRawValue, record.rsRawUnit);
+    if (raw) {
+      return raw;
+    }
+  }
+  return parameter === "rp"
+    ? formatResistanceByMode(record.rp, mode)
+    : formatResistanceByMode(record.rs, mode);
+}
+
+export function formatDisplayCapacitance(
+  record: DisplayRecord,
+  parameter: "cp" | "cs",
+  mode: DisplayMode,
+): string {
+  if (mode === "friendly") {
+    const raw =
+      parameter === "cp"
+        ? formatRawValueWithUnit(record.cpRawValue, record.cpRawUnit)
+        : formatRawValueWithUnit(record.csRawValue, record.csRawUnit);
+    if (raw) {
+      return raw;
+    }
+  }
+  return parameter === "cp"
+    ? formatCapacitanceByMode(record.cp, mode)
+    : formatCapacitanceByMode(record.cs, mode);
 }

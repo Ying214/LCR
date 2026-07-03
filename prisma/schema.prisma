@@ -20,7 +20,6 @@ model BaselineProfile {
   note           String?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
-
   datasets       MeasurementDataset[]
 }
 
@@ -29,28 +28,39 @@ model MeasurementDataset {
   datasetName    String
   conditionLabel String
   note           String?
-  metadata       Json?
   baselineId     String?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
-
-  baseline       BaselineProfile?    @relation(fields: [baselineId], references: [id], onDelete: SetNull)
+  metadata       Json?
+  baseline       BaselineProfile?    @relation(fields: [baselineId], references: [id])
   records        MeasurementRecord[]
 }
 
 model MeasurementRecord {
-  id         String             @id @default(cuid())
-  datasetId  String
-  indexNo    Int
-  freqHz     Float
-  level      Float
-  rp         Float?
-  cp         Float?
-  rs         Float?
-  cs         Float?
-  createdAt  DateTime           @default(now())
-
-  dataset    MeasurementDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  id            String             @id @default(cuid())
+  datasetId     String
+  indexNo       Int
+  freqHz        Float
+  level         Float
+  rp            Float?
+  cp            Float?
+  rs            Float?
+  cs            Float?
+  createdAt     DateTime           @default(now())
+  cpRawUnit     String?
+  cpRawValue    Float?
+  csRawUnit     String?
+  csRawValue    Float?
+  freqRawUnit   String?
+  freqRawValue  Float?
+  levelRawUnit  String?
+  levelRawValue Float?
+  rpRawUnit     String?
+  rpRawValue    Float?
+  rsRawUnit     String?
+  rsRawValue    Float?
+  ocrTracking   Json?
+  dataset       MeasurementDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
 
   @@unique([datasetId, indexNo])
 }

@@ -16,6 +16,10 @@ function parseJsonSafely(value: string): unknown {
   }
 }
 
+function isOcrTrackingEnabled(): boolean {
+  return process.env.OCR_ACCURACY_TRACKING_ENABLED?.toLowerCase() !== "false";
+}
+
 export async function POST(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file");
@@ -58,7 +62,10 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(parsedBody as OcrServiceResponse);
+    return NextResponse.json({
+      ...(parsedBody as OcrServiceResponse),
+      ocrAccuracyTrackingEnabled: isOcrTrackingEnabled(),
+    });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       return NextResponse.json<OcrErrorResponse>(

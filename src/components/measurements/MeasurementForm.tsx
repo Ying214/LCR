@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import type { CreateMeasurementDatasetPayload, OcrMetadata } from "@/lib/api-types";
+import type {
+  AppendMeasurementRecordsPayload,
+  CreateMeasurementDatasetPayload,
+  MeasurementDatasetListResponse,
+  OcrMetadata,
+} from "@/lib/api-types";
+import { getClientDefaultServerTrackingEnabled } from "@/lib/app-settings";
+import { buildOcrRecordTracking } from "@/lib/ocr-tracking";
 import { capacitanceToFarad, frequencyToHz, resistanceToOhm } from "@/lib/unit-conversion";
+import { useAppSettings } from "@/components/settings/SettingsProvider";
 
 import { SectionCard } from "@/components/layout/SectionCard";
 import {
@@ -17,6 +25,8 @@ import {
   MeasurementManualTable,
 } from "@/components/measurements/MeasurementManualTable";
 import { MeasurementSaveActions } from "@/components/measurements/MeasurementSaveActions";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialBasicInfo: MeasurementBasicInfo = {
   datasetName: "",
@@ -76,20 +86,62 @@ function parseOptionalNumber(
 }
 
 export function MeasurementForm() {
+  const [saveMode, setSaveMode] = useState<"create" | "append">("create");
+  const [targetDatasetId, setTargetDatasetId] = useState("");
+  const [datasetOptions, setDatasetOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [datasetOptionsLoading, setDatasetOptionsLoading] = useState(false);
+  const { effectiveOcrAccuracyTrackingEnabled, setServerTrackingEnabled } = useAppSettings();
   const [basicInfo, setBasicInfo] = useState<MeasurementBasicInfo>(initialBasicInfo);
   const [rows, setRows] = useState<ManualMeasurementRow[]>(createInitialManualRows());
   const [ocrMetadata, setOcrMetadata] = useState<OcrMetadata | null>(null);
+  const [serverTrackingEnabled, setLocalServerTrackingEnabled] = useState<boolean>(
+    getClientDefaultServerTrackingEnabled(),
+  );
   const [isSaving, setIsSaving] = useState(false);
+
+  const loadDatasetOptions = useCallback(async () => {
+    setDatasetOptionsLoading(true);
+    try {
+      const response = await fetch("/api/measurements");
+      if (!response.ok) {
+        return;
+      }
+      const json = (await response.json()) as MeasurementDatasetListResponse;
+      setDatasetOptions(
+        json.data.map((dataset) => ({
+          id: dataset.id,
+          label: `${dataset.datasetName}（${dataset.conditionLabel || "未設定製程條件"}）`,
+        })),
+      );
+    } finally {
+      setDatasetOptionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDatasetOptions();
+  }, [loadDatasetOptions]);
+
+  useEffect(() => {
+    if (saveMode === "append") {
+      void loadDatasetOptions();
+    }
+  }, [saveMode, loadDatasetOptions]);
 
   const handleApplyRows = (
     nextRows: ManualMeasurementRow[],
     options?: {
       datasetNameSuggestion?: string;
       ocrMetadata?: OcrMetadata | null;
+      serverTrackingEnabled?: boolean;
     },
   ) => {
     setRows(nextRows);
     setOcrMetadata(options?.ocrMetadata ?? null);
+    const nextServerTrackingEnabled =
+      options?.serverTrackingEnabled ?? getClientDefaultServerTrackingEnabled();
+    setLocalServerTrackingEnabled(nextServerTrackingEnabled);
+    setServerTrackingEnabled(nextServerTrackingEnabled);
 
     if (!options?.datasetNameSuggestion) {
       return;
@@ -108,8 +160,12 @@ export function MeasurementForm() {
 
   const saveManualInput = async () => {
     // TODO: 下輪改為 toast 提示，取代 alert。
-    if (!basicInfo.datasetName.trim()) {
+    if (saveMode === "create" && !basicInfo.datasetName.trim()) {
       alert("請輸入資料名稱。");
+      return;
+    }
+    if (saveMode === "append" && !targetDatasetId) {
+      alert("請先選擇要加入的既有資料集。");
       return;
     }
 
@@ -146,31 +202,74 @@ export function MeasurementForm() {
         return;
       }
 
+      const normalizedFreqHz = frequencyToHz(freq.value as number, row.freqUnit);
+      const normalizedLevel = level.value as number;
+      const normalizedRp = rp.value === null ? null : resistanceToOhm(rp.value, row.rpUnit);
+      const normalizedCp = cp.value === null ? null : capacitanceToFarad(cp.value, row.cpUnit);
+      const normalizedRs = rs.value === null ? null : resistanceToOhm(rs.value, row.rsUnit);
+      const normalizedCs = cs.value === null ? null : capacitanceToFarad(cs.value, row.csUnit);
+
+      const ocrTracking =
+        serverTrackingEnabled && effectiveOcrAccuracyTrackingEnabled
+          ? buildOcrRecordTracking(row.ocrInitialSnapshot, {
+              freqHz: normalizedFreqHz,
+              level: normalizedLevel,
+              rp: normalizedRp,
+              cp: normalizedCp,
+              rs: normalizedRs,
+              cs: normalizedCs,
+            })
+          : null;
+
       validatedRecords.push({
         indexNo: index + 1,
-        freqHz: frequencyToHz(freq.value as number, row.freqUnit),
-        level: level.value as number,
-        rp: rp.value === null ? null : resistanceToOhm(rp.value, row.rpUnit),
-        cp: cp.value === null ? null : capacitanceToFarad(cp.value, row.cpUnit),
-        rs: rs.value === null ? null : resistanceToOhm(rs.value, row.rsUnit),
-        cs: cs.value === null ? null : capacitanceToFarad(cs.value, row.csUnit),
+        freqHz: normalizedFreqHz,
+        level: normalizedLevel,
+        rp: normalizedRp,
+        cp: normalizedCp,
+        rs: normalizedRs,
+        cs: normalizedCs,
+        freqRawValue: freq.value,
+        freqRawUnit: row.freqUnit,
+        levelRawValue: level.value,
+        levelRawUnit: "v",
+        rpRawValue: rp.value,
+        rpRawUnit: rp.value === null ? null : row.rpUnit,
+        cpRawValue: cp.value,
+        cpRawUnit: cp.value === null ? null : row.cpUnit,
+        rsRawValue: rs.value,
+        rsRawUnit: rs.value === null ? null : row.rsUnit,
+        csRawValue: cs.value,
+        csRawUnit: cs.value === null ? null : row.csUnit,
+        ocrTracking,
       });
     }
 
-    const payload: CreateMeasurementDatasetPayload = {
-      datasetName: basicInfo.datasetName.trim(),
-      conditionLabel: basicInfo.conditionLabel.trim(),
-      metadata: ocrMetadata ? { ocr: ocrMetadata } : undefined,
-      records: validatedRecords,
-    };
-
     setIsSaving(true);
     try {
-      const response = await fetch("/api/measurements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      let response: Response;
+      if (saveMode === "create") {
+        const payload: CreateMeasurementDatasetPayload = {
+          datasetName: basicInfo.datasetName.trim(),
+          conditionLabel: basicInfo.conditionLabel.trim(),
+          metadata: ocrMetadata ? { ocr: ocrMetadata } : undefined,
+          records: validatedRecords,
+        };
+        response = await fetch("/api/measurements", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        const payload: AppendMeasurementRecordsPayload = {
+          records: validatedRecords,
+        };
+        response = await fetch(`/api/measurements/${targetDatasetId}/records`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (!response.ok) {
         const error = (await response.json()) as { message?: string };
@@ -178,7 +277,11 @@ export function MeasurementForm() {
         return;
       }
 
-      alert("量測資料儲存成功。");
+      if (saveMode === "create") {
+        await loadDatasetOptions();
+      }
+
+      alert(saveMode === "create" ? "量測資料儲存成功。" : "量測資料已加入既有資料集。");
     } finally {
       setIsSaving(false);
     }
@@ -187,7 +290,51 @@ export function MeasurementForm() {
   return (
     <>
       <SectionCard title="基本資訊">
-        <MeasurementBasicInfoForm value={basicInfo} onChange={setBasicInfo} />
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>儲存模式</Label>
+            <div className="flex flex-wrap gap-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="save-mode"
+                  checked={saveMode === "create"}
+                  onChange={() => setSaveMode("create")}
+                />
+                建立新資料集
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="save-mode"
+                  checked={saveMode === "append"}
+                  onChange={() => setSaveMode("append")}
+                />
+                加入既有資料集
+              </label>
+            </div>
+          </div>
+
+          {saveMode === "append" ? (
+            <div className="space-y-2">
+              <Label htmlFor="target-dataset-select">既有資料集</Label>
+              <Select value={targetDatasetId} onValueChange={setTargetDatasetId}>
+                <SelectTrigger id="target-dataset-select" className="max-w-xl bg-white">
+                  <SelectValue placeholder={datasetOptionsLoading ? "載入中..." : "請選擇資料集"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {datasetOptions.map((dataset) => (
+                    <SelectItem key={dataset.id} value={dataset.id}>
+                      {dataset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <MeasurementBasicInfoForm value={basicInfo} onChange={setBasicInfo} />
+          )}
+        </div>
       </SectionCard>
 
       <SectionCard title="圖片上傳匯入">

@@ -30,6 +30,13 @@ export function MeasurementFilterBar({
   onApply,
   onReset,
 }: MeasurementFilterBarProps) {
+  const safeConditionOptions = Array.from(
+    new Set(conditionOptions.map((option) => option.trim()).filter((option) => option.length > 0)),
+  );
+  const safeFrequencyOptions = Array.from(new Set(frequencyOptions.filter(Number.isFinite)));
+  const safeLevelOptions = Array.from(new Set(levelOptions.filter(Number.isFinite)));
+  const safeBaselines = baselines.filter((baseline) => baseline.id.trim().length > 0);
+
   return (
     <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="grid gap-4 xl:grid-cols-5">
@@ -55,7 +62,7 @@ export function MeasurementFilterBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">未選擇</SelectItem>
-              {conditionOptions.map((option) => (
+              {safeConditionOptions.map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>
@@ -74,7 +81,7 @@ export function MeasurementFilterBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">未選擇</SelectItem>
-              {frequencyOptions.map((option) => (
+              {safeFrequencyOptions.map((option) => (
                 <SelectItem key={option.toString()} value={option.toString()}>
                   {formatFrequencyWithUnit(option)}
                 </SelectItem>
@@ -93,7 +100,7 @@ export function MeasurementFilterBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">未選擇</SelectItem>
-              {levelOptions.map((option) => (
+              {safeLevelOptions.map((option) => (
                 <SelectItem key={option.toString()} value={option.toString()}>
                   {option}
                 </SelectItem>
@@ -104,7 +111,7 @@ export function MeasurementFilterBar({
         <BaselineSelector
           label="Baseline（僅篩選）"
           value={filters.baselineId}
-          baselines={baselines}
+          baselines={safeBaselines}
           emptyLabel="未選擇"
           onChange={(baselineId) => onFiltersChange({ ...filters, baselineId })}
         />

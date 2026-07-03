@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import type { CreateMeasurementDatasetPayload } from "@/lib/api-types";
 import { prisma } from "@/lib/prisma";
@@ -15,6 +15,18 @@ function toNumber(value: unknown): number | null {
 function toInputJsonValue(value: CreateMeasurementDatasetPayload["metadata"]): Prisma.InputJsonValue | undefined {
   if (!value) {
     return undefined;
+  }
+  return value as Prisma.InputJsonValue;
+}
+
+function toOcrTrackingInput(
+  value: CreateMeasurementDatasetPayload["records"][number]["ocrTracking"],
+): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return Prisma.JsonNull;
   }
   return value as Prisma.InputJsonValue;
 }
@@ -93,6 +105,19 @@ export async function POST(request: Request) {
           cp: record.cp,
           rs: record.rs,
           cs: record.cs,
+          freqRawValue: record.freqRawValue ?? null,
+          freqRawUnit: record.freqRawUnit ?? null,
+          levelRawValue: record.levelRawValue ?? null,
+          levelRawUnit: record.levelRawUnit ?? null,
+          rpRawValue: record.rpRawValue ?? null,
+          rpRawUnit: record.rpRawUnit ?? null,
+          cpRawValue: record.cpRawValue ?? null,
+          cpRawUnit: record.cpRawUnit ?? null,
+          rsRawValue: record.rsRawValue ?? null,
+          rsRawUnit: record.rsRawUnit ?? null,
+          csRawValue: record.csRawValue ?? null,
+          csRawUnit: record.csRawUnit ?? null,
+          ocrTracking: toOcrTrackingInput(record.ocrTracking),
         })),
       });
 

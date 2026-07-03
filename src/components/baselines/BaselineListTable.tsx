@@ -3,8 +3,15 @@
 import Link from "next/link";
 
 import type { BaselineProfile } from "@/lib/types";
-import { formatDateTime, formatFrequency, formatLevel, formatNumber } from "@/lib/formatters";
+import { formatDateTime } from "@/lib/formatters";
+import {
+  formatCapacitanceByMode,
+  formatFrequencyByMode,
+  formatLevelByMode,
+  formatResistanceByMode,
+} from "@/lib/unit-conversion";
 
+import { useAppSettings } from "@/components/settings/SettingsProvider";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -17,6 +24,8 @@ const deleteWarningMessage =
   "刪除後既有 dataset 的 baselineId 會變成 null，但量測資料仍保留。確定要刪除嗎？";
 
 export function BaselineListTable({ baselines, onDelete }: BaselineListTableProps) {
+  const { settings } = useAppSettings();
+
   const handleDelete = async (id: string) => {
     const confirmed = window.confirm(deleteWarningMessage);
     if (!confirmed) {
@@ -32,8 +41,8 @@ export function BaselineListTable({ baselines, onDelete }: BaselineListTableProp
           <TableRow>
             <TableHead>名稱</TableHead>
             <TableHead>製程條件說明</TableHead>
-            <TableHead>FREQ(Hz)</TableHead>
-            <TableHead>LEVEL</TableHead>
+            <TableHead>{settings.displayMode === "standard" ? "FREQ(Hz)" : "FREQ"}</TableHead>
+            <TableHead>{settings.displayMode === "standard" ? "LEVEL(V)" : "LEVEL"}</TableHead>
             <TableHead>Rp</TableHead>
             <TableHead>Cp</TableHead>
             <TableHead>Rs</TableHead>
@@ -47,12 +56,12 @@ export function BaselineListTable({ baselines, onDelete }: BaselineListTableProp
             <TableRow key={baseline.id}>
               <TableCell>{baseline.name}</TableCell>
               <TableCell>{baseline.conditionLabel ?? "--"}</TableCell>
-              <TableCell className="font-mono">{formatFrequency(baseline.freqHz)}</TableCell>
-              <TableCell className="font-mono">{formatLevel(baseline.level)}</TableCell>
-              <TableCell className="font-mono">{formatNumber(baseline.rp, 6)}</TableCell>
-              <TableCell className="font-mono">{formatNumber(baseline.cp, 12)}</TableCell>
-              <TableCell className="font-mono">{formatNumber(baseline.rs, 6)}</TableCell>
-              <TableCell className="font-mono">{formatNumber(baseline.cs, 12)}</TableCell>
+              <TableCell className="font-mono">{formatFrequencyByMode(baseline.freqHz, settings.displayMode)}</TableCell>
+              <TableCell className="font-mono">{formatLevelByMode(baseline.level, settings.displayMode)}</TableCell>
+              <TableCell className="font-mono">{formatResistanceByMode(baseline.rp, settings.displayMode)}</TableCell>
+              <TableCell className="font-mono">{formatCapacitanceByMode(baseline.cp, settings.displayMode)}</TableCell>
+              <TableCell className="font-mono">{formatResistanceByMode(baseline.rs, settings.displayMode)}</TableCell>
+              <TableCell className="font-mono">{formatCapacitanceByMode(baseline.cs, settings.displayMode)}</TableCell>
               <TableCell>{formatDateTime(baseline.createdAt)}</TableCell>
               <TableCell className="space-x-2">
                 <Button asChild type="button" variant="outline" size="sm">

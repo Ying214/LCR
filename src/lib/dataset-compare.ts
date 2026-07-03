@@ -1,6 +1,8 @@
 import type { MeasurementDatasetWithRelations, ParameterKey } from "@/lib/types";
+import { formatLevel } from "@/lib/formatters";
+import { formatFrequencyWithUnit } from "@/lib/unit-conversion";
 
-export type DatasetCompareSource = "average" | `index:${number}`;
+export type DatasetCompareSource = "average" | `freq:${number}` | `index:${number}`;
 
 export type DatasetCompareTarget = {
   id: string;
@@ -42,6 +44,8 @@ export type DatasetCompareRangeRow = {
   datasetId: string;
   datasetName: string;
   conditionLabel: string;
+  source: DatasetCompareSource;
+  sourceLabel: string;
   freqHz: number | null;
   level: number | null;
   recordCount: number;
@@ -50,6 +54,10 @@ export type DatasetCompareRangeRow = {
 };
 
 const PARAMETER_KEYS: ParameterKey[] = ["rp", "cp", "rs", "cs"];
+
+export function buildSampleTargetCode(index: number): string {
+  return `Sample ${index + 1}`;
+}
 
 function mean(values: number[]): number | null {
   if (values.length === 0) {
@@ -60,11 +68,19 @@ function mean(values: number[]): number | null {
 }
 
 function getSourceIndex(source: DatasetCompareSource): number | null {
-  if (source === "average") {
+  if (!source.startsWith("index:")) {
     return null;
   }
   const parsed = Number(source.replace("index:", ""));
   return Number.isInteger(parsed) ? parsed : null;
+}
+
+function getSourceFreqHz(source: DatasetCompareSource): number | null {
+  if (!source.startsWith("freq:")) {
+    return null;
+  }
+  const parsed = Number(source.replace("freq:", ""));
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function toFiniteValues(values: Array<number | null | undefined>): number[] {
@@ -75,10 +91,19 @@ export function getDatasetRecordIndexes(dataset: MeasurementDatasetWithRelations
   return [...new Set(dataset.records.map((record) => record.indexNo))].sort((a, b) => a - b);
 }
 
+function getDatasetFrequencies(dataset: MeasurementDatasetWithRelations): number[] {
+  return [...new Set(toFiniteValues(dataset.records.map((record) => record.freqHz)))].sort((a, b) => a - b);
+}
+
 export function getDatasetSourceOptions(dataset: MeasurementDatasetWithRelations): DatasetCompareSourceOption[] {
+  const frequencies = getDatasetFrequencies(dataset);
   const recordIndexes = getDatasetRecordIndexes(dataset);
   return [
-    { value: "average", label: "平均值" },
+    { value: "average", label: "全部平均" },
+    ...frequencies.map((freqHz) => ({
+      value: `freq:${freqHz}` as DatasetCompareSource,
+      label: `${formatFrequencyWithUnit(freqHz)} 平均`,
+    })),
     ...recordIndexes.map((indexNo) => ({
       value: `index:${indexNo}` as DatasetCompareSource,
       label: `第 ${indexNo} 筆`,
@@ -86,12 +111,25 @@ export function getDatasetSourceOptions(dataset: MeasurementDatasetWithRelations
   ];
 }
 
-export function getSourceLabel(source: DatasetCompareSource): string {
+export function getSourceLabel(
+  source: DatasetCompareSource,
+  context?: { freqHz?: number | null; level?: number | null },
+): string {
   if (source === "average") {
-    return "平均值";
+    return "全部平均";
+  }
+  const freqHz = getSourceFreqHz(source);
+  if (freqHz !== null) {
+    return `${formatFrequencyWithUnit(freqHz)} 平均`;
   }
   const indexNo = getSourceIndex(source);
-  return indexNo === null ? "未知來源" : `第 ${indexNo} 筆`;
+  if (indexNo === null) {
+    return "未知來源";
+  }
+  if (!context) {
+    return `第 ${indexNo} 筆`;
+  }
+  return `第 ${indexNo} 筆 (${formatFrequencyWithUnit(context.freqHz)} / ${formatLevel(context.level)} V)`;
 }
 
 export function normalizeTargetSource(
@@ -105,6 +143,13 @@ export function normalizeTargetSource(
     return "average";
   }
 
+  const freqHz = getSourceFreqHz(source);
+  if (freqHz !== null) {
+    return dataset.records.some((record) => record.freqHz === freqHz)
+      ? source
+      : "average";
+  }
+
   const indexNo = getSourceIndex(source);
   if (indexNo === null) {
     return "average";
@@ -115,11 +160,17 @@ export function normalizeTargetSource(
 }
 
 function buildAverageValues(dataset: MeasurementDatasetWithRelations): DatasetCompareValues {
+  return buildAverageValuesFromRecords(dataset.records);
+}
+
+function buildAverageValuesFromRecords(
+  records: MeasurementDatasetWithRelations["records"],
+): DatasetCompareValues {
   return {
-    rp: mean(toFiniteValues(dataset.records.map((record) => record.rp))),
-    cp: mean(toFiniteValues(dataset.records.map((record) => record.cp))),
-    rs: mean(toFiniteValues(dataset.records.map((record) => record.rs))),
-    cs: mean(toFiniteValues(dataset.records.map((record) => record.cs))),
+    rp: mean(toFiniteValues(records.map((record) => record.rp))),
+    cp: mean(toFiniteValues(records.map((record) => record.cp))),
+    rs: mean(toFiniteValues(records.map((record) => record.rs))),
+    cs: mean(toFiniteValues(records.map((record) => record.cs))),
   };
 }
 
@@ -155,6 +206,28 @@ function buildRecordValues(
   };
 }
 
+function getRecordsBySource(
+  dataset: MeasurementDatasetWithRelations,
+  source: DatasetCompareSource,
+): MeasurementDatasetWithRelations["records"] {
+  if (source === "average") {
+    return dataset.records;
+  }
+
+  const sourceFreqHz = getSourceFreqHz(source);
+  if (sourceFreqHz !== null) {
+    return dataset.records.filter((record) => record.freqHz === sourceFreqHz);
+  }
+
+  const sourceIndexNo = getSourceIndex(source);
+  if (sourceIndexNo === null) {
+    return [];
+  }
+
+  const selectedRecord = dataset.records.find((record) => record.indexNo === sourceIndexNo);
+  return selectedRecord ? [selectedRecord] : [];
+}
+
 function buildMissingMessages(values: DatasetCompareValues, source: DatasetCompareSource): string[] {
   const messages: string[] = [];
   for (const parameter of PARAMETER_KEYS) {
@@ -168,11 +241,11 @@ function buildMissingMessages(values: DatasetCompareValues, source: DatasetCompa
   return messages;
 }
 
-function summarizeDatasetParameterRange(
-  dataset: MeasurementDatasetWithRelations,
+function summarizeParameterRangeFromRecords(
+  records: MeasurementDatasetWithRelations["records"],
   parameter: ParameterKey,
 ): DatasetParameterRangeStats {
-  const values = toFiniteValues(dataset.records.map((record) => record[parameter]));
+  const values = toFiniteValues(records.map((record) => record[parameter]));
   if (values.length === 0) {
     return { min: null, mean: null, max: null };
   }
@@ -187,6 +260,7 @@ function summarizeDatasetParameterRange(
 function buildRangeMissingMessages(
   ranges: Record<ParameterKey, DatasetParameterRangeStats>,
   datasetExists: boolean,
+  source: DatasetCompareSource,
 ): string[] {
   if (!datasetExists) {
     return ["找不到對應 dataset"];
@@ -198,6 +272,9 @@ function buildRangeMissingMessages(
       messages.push(`${parameter.toUpperCase()} 無可用資料`);
     }
   }
+  if (source !== "average" && messages.length > 0) {
+    messages.unshift(`${getSourceLabel(source)} 資料不完整或不存在`);
+  }
   return messages;
 }
 
@@ -207,17 +284,16 @@ export function buildDatasetCompareRows(
 ): DatasetCompareRow[] {
   return targets.map((target, index) => {
     const dataset = datasets.find((item) => item.id === target.datasetId) ?? null;
-    const sourceLabel = getSourceLabel(target.source);
 
     if (!dataset) {
       return {
-        targetCode: `C${index + 1}`,
+        targetCode: buildSampleTargetCode(index),
         targetId: target.id,
         datasetId: target.datasetId,
         datasetName: "未選擇 dataset",
         conditionLabel: "--",
         source: target.source,
-        sourceLabel,
+        sourceLabel: getSourceLabel(target.source),
         freqHz: null,
         level: null,
         values: { rp: null, cp: null, rs: null, cs: null },
@@ -227,32 +303,42 @@ export function buildDatasetCompareRows(
     }
 
     const sourceIndexNo = getSourceIndex(target.source);
-    const averageValues = buildAverageValues(dataset);
+    const sourceFreqHz = getSourceFreqHz(target.source);
+    const sourceRecords = getRecordsBySource(dataset, target.source);
     let values: DatasetCompareValues;
     let freqHz: number | null;
     let level: number | null;
+    let sourceLabel: string;
 
-    if (sourceIndexNo === null) {
-      values = averageValues;
+    if (target.source === "average") {
+      values = buildAverageValues(dataset);
       freqHz = getUniqueOrNull(dataset.records.map((record) => record.freqHz));
       level = getUniqueOrNull(dataset.records.map((record) => record.level));
+      sourceLabel = getSourceLabel(target.source);
+    } else if (sourceFreqHz !== null) {
+      values = buildAverageValuesFromRecords(sourceRecords);
+      freqHz = sourceFreqHz;
+      level = getUniqueOrNull(sourceRecords.map((record) => record.level));
+      sourceLabel = getSourceLabel(target.source, { freqHz, level });
     } else {
-      const selectedRecord = buildRecordValues(dataset, sourceIndexNo);
+      const selectedRecord = sourceIndexNo === null ? null : buildRecordValues(dataset, sourceIndexNo);
       if (!selectedRecord) {
         values = { rp: null, cp: null, rs: null, cs: null };
         freqHz = null;
         level = null;
+        sourceLabel = getSourceLabel(target.source);
       } else {
         values = selectedRecord.values;
         freqHz = selectedRecord.freqHz;
         level = selectedRecord.level;
+        sourceLabel = getSourceLabel(target.source, { freqHz, level });
       }
     }
 
     const missingMessages = buildMissingMessages(values, target.source);
 
     return {
-      targetCode: `C${index + 1}`,
+      targetCode: buildSampleTargetCode(index),
       targetId: target.id,
       datasetId: dataset.id,
       datasetName: dataset.datasetName || "未命名 dataset",
@@ -262,7 +348,7 @@ export function buildDatasetCompareRows(
       freqHz,
       level,
       values,
-      recordCount: dataset.records.length,
+      recordCount: sourceRecords.length,
       missingMessages,
     };
   });
@@ -283,37 +369,56 @@ export function buildDatasetRangeRows(
         cs: { min: null, mean: null, max: null },
       };
       return {
-        targetCode: `C${index + 1}`,
+        targetCode: buildSampleTargetCode(index),
         targetId: target.id,
         datasetId: target.datasetId,
         datasetName: "未選擇 dataset",
         conditionLabel: "--",
+        source: target.source,
+        sourceLabel: getSourceLabel(target.source),
         freqHz: null,
         level: null,
         recordCount: 0,
         ranges: emptyRanges,
-        missingMessages: buildRangeMissingMessages(emptyRanges, false),
+        missingMessages: buildRangeMissingMessages(emptyRanges, false, target.source),
       };
     }
 
+    const sourceRecords = getRecordsBySource(dataset, target.source);
+    const sourceIndexNo = getSourceIndex(target.source);
+    const sourceFreqHz = getSourceFreqHz(target.source);
+
     const ranges: Record<ParameterKey, DatasetParameterRangeStats> = {
-      rp: summarizeDatasetParameterRange(dataset, "rp"),
-      cp: summarizeDatasetParameterRange(dataset, "cp"),
-      rs: summarizeDatasetParameterRange(dataset, "rs"),
-      cs: summarizeDatasetParameterRange(dataset, "cs"),
+      rp: summarizeParameterRangeFromRecords(sourceRecords, "rp"),
+      cp: summarizeParameterRangeFromRecords(sourceRecords, "cp"),
+      rs: summarizeParameterRangeFromRecords(sourceRecords, "rs"),
+      cs: summarizeParameterRangeFromRecords(sourceRecords, "cs"),
     };
 
+    const freqHz =
+      target.source === "average"
+        ? getUniqueOrNull(dataset.records.map((record) => record.freqHz))
+        : sourceFreqHz ?? (sourceIndexNo === null ? null : sourceRecords[0]?.freqHz ?? null);
+    const level =
+      target.source === "average"
+        ? getUniqueOrNull(dataset.records.map((record) => record.level))
+        : getUniqueOrNull(sourceRecords.map((record) => record.level));
+    const sourceLabel = getSourceLabel(target.source, { freqHz, level });
+
     return {
-      targetCode: `C${index + 1}`,
+      targetCode: buildSampleTargetCode(index),
       targetId: target.id,
       datasetId: dataset.id,
       datasetName: dataset.datasetName || "未命名 dataset",
       conditionLabel: dataset.conditionLabel || "未設定製程條件",
-      freqHz: getUniqueOrNull(dataset.records.map((record) => record.freqHz)),
-      level: getUniqueOrNull(dataset.records.map((record) => record.level)),
-      recordCount: dataset.records.length,
+      source: target.source,
+      sourceLabel,
+      freqHz,
+      level,
+      recordCount: sourceRecords.length,
       ranges,
-      missingMessages: buildRangeMissingMessages(ranges, true),
+      missingMessages: buildRangeMissingMessages(ranges, true, target.source),
     };
   });
 }
+

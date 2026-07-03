@@ -3,10 +3,16 @@
 import { useMemo, useState } from "react";
 
 import type { MeasurementDatasetWithRelations, TrendRecordSelection } from "@/lib/types";
-import { formatFrequencyWithUnit, formatCapacitance, formatResistance } from "@/lib/unit-conversion";
-import { formatDateTime, formatLevel } from "@/lib/formatters";
+import {
+  formatDisplayCapacitance,
+  formatDisplayFrequency,
+  formatDisplayLevel,
+  formatDisplayResistance,
+} from "@/lib/unit-conversion";
+import { formatDateTime } from "@/lib/formatters";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useAppSettings } from "@/components/settings/SettingsProvider";
 
 type MeasurementDataTableProps = {
   datasets: MeasurementDatasetWithRelations[];
@@ -21,6 +27,7 @@ export function MeasurementDataTable({
   selectedRecord,
   onSelectRecord,
 }: MeasurementDataTableProps) {
+  const { settings } = useAppSettings();
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const groupedDatasets = useMemo(() => {
@@ -66,8 +73,8 @@ export function MeasurementDataTable({
                   >
                     筆數 {sortDirection === "asc" ? "↑" : "↓"}
                   </TableHead>
-                  <TableHead>FREQ(Hz)</TableHead>
-                  <TableHead>LEVEL (V)</TableHead>
+                  <TableHead>{settings.displayMode === "standard" ? "FREQ(Hz)" : "FREQ"}</TableHead>
+                  <TableHead>{settings.displayMode === "standard" ? "LEVEL(V)" : "LEVEL"}</TableHead>
                   <TableHead>Rp</TableHead>
                   <TableHead>Cp</TableHead>
                   <TableHead>Rs</TableHead>
@@ -94,12 +101,12 @@ export function MeasurementDataTable({
                     }
                   >
                     <TableCell className="font-mono">{record.indexNo}</TableCell>
-                    <TableCell className="font-mono">{formatFrequencyWithUnit(record.freqHz)}</TableCell>
-                    <TableCell className="font-mono">{formatLevel(record.level)} V</TableCell>
-                    <TableCell className="font-mono">{formatResistance(record.rp)}</TableCell>
-                    <TableCell className="font-mono">{formatCapacitance(record.cp)}</TableCell>
-                    <TableCell className="font-mono">{formatResistance(record.rs)}</TableCell>
-                    <TableCell className="font-mono">{formatCapacitance(record.cs)}</TableCell>
+                    <TableCell className="font-mono">{formatDisplayFrequency(record, settings.displayMode)}</TableCell>
+                    <TableCell className="font-mono">{formatDisplayLevel(record, settings.displayMode)}</TableCell>
+                    <TableCell className="font-mono">{formatDisplayResistance(record, "rp", settings.displayMode)}</TableCell>
+                    <TableCell className="font-mono">{formatDisplayCapacitance(record, "cp", settings.displayMode)}</TableCell>
+                    <TableCell className="font-mono">{formatDisplayResistance(record, "rs", settings.displayMode)}</TableCell>
+                    <TableCell className="font-mono">{formatDisplayCapacitance(record, "cs", settings.displayMode)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

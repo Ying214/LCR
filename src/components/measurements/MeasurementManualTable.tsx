@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { calculateAverages } from "@/lib/calculations";
+import type { OcrInitialSnapshot } from "@/lib/ocr-tracking";
 import type { MeasurementUnitFields } from "@/lib/types";
 import {
   CAPACITANCE_UNIT_OPTIONS,
@@ -34,6 +35,7 @@ export type ManualMeasurementRow = {
   cpScore?: number | null;
   rsScore?: number | null;
   csScore?: number | null;
+  ocrInitialSnapshot?: OcrInitialSnapshot | null;
 } & MeasurementUnitFields;
 
 type MeasurementManualTableProps = {
@@ -70,6 +72,7 @@ function createEmptyRow(columnUnits: ColumnUnitDefaults): ManualMeasurementRow {
     cpScore: null,
     rsScore: null,
     csScore: null,
+    ocrInitialSnapshot: null,
     ...columnUnits,
   };
 }
@@ -99,9 +102,9 @@ function getScoreText(value: string, score: number | null | undefined): string {
     return "缺少辨識值";
   }
   if (typeof score === "number") {
-    return `信心度 ${score.toFixed(3)}`;
+    return score < LOW_SCORE_THRESHOLD ? "建議檢查" : "信心度正常";
   }
-  return "無信心度資料";
+  return "建議檢查";
 }
 
 function getScoreHintClass(value: string, score: number | null | undefined): string {
