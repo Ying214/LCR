@@ -160,11 +160,6 @@ http://localhost:3100
 ## 聯絡與回饋
 
 若在部署、使用或開發本系統時遇到任何問題，或有任何建議與改善想法，歡迎來信聯繫：
-
-黃世穎
-
-Email：
-
-shi0214ying@gmail.com
+Email：shi0214ying@gmail.com
 
 歡迎提供任何使用回饋與改善建議。
