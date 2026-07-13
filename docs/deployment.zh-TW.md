@@ -117,7 +117,7 @@ npm run prisma:generate
 npm run prisma:migrate
 ```
 
-完成後，第一次安裝就結束了。接下來照第二章啟動兩個服務。
+Migration 完成後只會建立資料表，不會自動建立 Baseline、Dataset 或 MeasurementRecord；新資料庫預設為空。完成後，第一次安裝就結束了。接下來照第二章啟動兩個服務。
 
 ## 第二章：每天啟動
 
@@ -255,9 +255,17 @@ OCR_API_TIMEOUT_MS="120000"
 Prisma 負責應用程式與 SQLite 資料庫之間的操作：
 
 - `npm run prisma:generate` 產生專案使用的 Prisma Client。
-- `npm run prisma:migrate` 建立或更新 `prisma\dev.db` 的資料表。
+- `npm run prisma:migrate` 建立或更新 `prisma\dev.db` 的資料表，並固定略過 seed。
 
 平常啟動不用重跑；只有 migrations 有新增時才需要執行。
+
+需要示範資料時，可以手動執行：
+
+```powershell
+npm run db:seed
+```
+
+此指令會先刪除資料庫內既有的 Baseline、Dataset 與 MeasurementRecord，再建立示範資料。不可在已有正式資料的環境隨意執行。
 
 ## 第四章：模型、測試與維護
 

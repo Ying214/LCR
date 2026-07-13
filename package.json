@@ -9,7 +9,7 @@
     "dev:raw": "next dev",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate": "prisma migrate dev --skip-seed",
     "prisma:studio": "prisma studio",
     "db:seed": "prisma db seed"
   },

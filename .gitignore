@@ -50,6 +50,10 @@ __pycache__/
 prisma/dev.db
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
 
 # OCR runtime data
 /servers/ocr/data/
