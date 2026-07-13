@@ -22,24 +22,6 @@
 - 報告匯出：支援 A4 PDF、比較圖 PNG、Scale Bar ZIP、比較表 CSV。
 - 本地部署：OCR API 與 Dashboard 可在本機或內部環境執行，量測圖片不需要上傳雲端服務。
 
-## 系統架構
-
-```mermaid
-flowchart LR
-  User[使用者] --> Web[Next.js Dashboard]
-  BMP[量測圖片 / BMP 或其他圖片] --> Web
-  Web --> OCRProxy[Next.js /api/ocr]
-  OCRProxy --> OCR[OCR API / PaddleOCR]
-  OCR --> OCRResult[OCR 文字與標記圖]
-  OCRResult --> Parser[欄位解析]
-  Parser --> Review[人工確認與修正]
-  Review --> UnitConversion[單位標準化]
-  UnitConversion --> Prisma[Prisma ORM]
-  Prisma --> DB[(SQLite)]
-  DB --> Dashboard[Dashboard / Baseline / Dataset]
-  Dashboard --> Export[PDF / PNG / ZIP / CSV]
-```
-
 目前專案沒有獨立的後端 API 服務；Dashboard 與資料 API routes 由 Next.js 提供。OCR API 是獨立 FastAPI / PaddleOCR 服務，可用 Docker 建立與啟動。
 
 ## 技術架構
