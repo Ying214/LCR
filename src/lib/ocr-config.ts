@@ -1,7 +1,7 @@
 import "server-only";
 
 const DEFAULT_OCR_API_URL = "http://127.0.0.1:8001";
-const DEFAULT_OCR_API_TIMEOUT_MS = 120_000;
+const DEFAULT_OCR_API_TIMEOUT_MS = 180_000;
 
 function normalizeBaseUrl(rawValue: string | undefined): string {
   const value = rawValue?.trim() || DEFAULT_OCR_API_URL;

@@ -197,10 +197,10 @@ PaddleOCR PP-OCRv5 / PaddlePaddle CPU
 
 ```env
 OCR_API_URL="http://127.0.0.1:8001"
-OCR_API_TIMEOUT_MS="120000"
+OCR_API_TIMEOUT_MS="180000"
 ```
 
-`OCR_API_TIMEOUT_MS` 是 120 秒。CPU 實測通常約 30 秒，但速度可能受電腦負載影響，所以不應在 30 秒時提早中止。
+`OCR_API_TIMEOUT_MS` 是 180 秒。CPU 實測通常約 30 秒，但速度可能受電腦負載影響，所以不應在 30 秒時提早中止。
 
 如果修改 `.env`，要重新啟動 Next.js 才會套用。
 
@@ -387,7 +387,7 @@ Select-String -Path .\.env -Pattern "OCR_API_URL"
 
 ### OCR 等待約 30 秒，看起來像沒有反應
 
-CPU 辨識需要時間。先查看 OCR Server 視窗是否仍在處理；完整回應時間可能因電腦負載超過 30 秒。專案的 OCR request timeout 為 120 秒，不要在等待期間重複上傳同一張圖片。
+CPU 辨識需要時間。先查看 OCR Server 視窗是否仍在處理；完整回應時間可能因電腦負載超過 30 秒。專案的 OCR request timeout 為 180 秒，不要在等待期間重複上傳同一張圖片。
 
 ### 如何再次確認使用 CPU
 
