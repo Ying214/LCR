@@ -28,8 +28,8 @@ PaddlePaddle CPU + Prisma / SQLite
 
 ## 部署方式
 
-- ✅ [Windows CPU 部署（正式支援）](docs/deployment.zh-TW.md)
-- 🚧 [Windows GPU 部署（待重新整理與驗證）](docs/deployment-gpu.zh-TW.md)
+- [Windows CPU 部署（正式支援）](docs/deployment.zh-TW.md)
+- [Windows GPU 部署（待重新整理與驗證）](docs/deployment-gpu.zh-TW.md)
 
 Windows CPU 部署已完成整理與驗證，適合作為正式交接流程。GPU 開發環境已有實際使用經驗，但部署教學仍待重新整理與驗證。若想了解 CPU 與 GPU 的效能差異，請參考部署文件。
 
