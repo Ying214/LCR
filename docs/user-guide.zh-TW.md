@@ -1,6 +1,6 @@
 # 使用者操作手冊
 
-本文件說明如何使用 LCR OCR Dashboard 建立量測資料、執行 OCR、管理 Dataset / Baseline、查看 Dashboard，以及匯出報告。部署、Docker、PaddleOCR 安裝與 port 設定請參考 [部署說明](deployment.zh-TW.md)。
+本文件說明如何使用 LCR OCR Dashboard 建立量測資料、執行 OCR、管理 Dataset / Baseline、查看 Dashboard，以及匯出報告。Windows 本機安裝、PaddleOCR CPU 與 port 設定請參考 [部署說明](deployment.zh-TW.md)。
 
 ## 系統入口
 
@@ -215,11 +215,13 @@ CSV 欄位與 Dashboard 比較資料表一致，並加入 UTF-8 BOM，方便 Exc
 
 ### OCR 無法連線
 
-請通知維護者檢查：
+請先自行確認：
 
-- OCR API 是否已啟動。
-- `OCR_API_URL` 是否指向正確 port。
-- Docker container 是否正常執行。
+- OCR Server 是否已啟動，PowerShell 視窗是否仍在執行。
+- Next.js 是否已啟動。
+- `OCR_API_URL` 是否設定為正確的 OCR Server 位址與 port。
+
+若以上項目都正常但仍無法連線，再通知維護者協助檢查。
 
 ### OCR 解析結果不準
 

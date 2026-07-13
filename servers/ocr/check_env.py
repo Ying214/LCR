@@ -1,13 +1,12 @@
-import paddleocr
-print(f"PaddleOCR版本: {paddleocr.__version__}")
-
 import paddle
-print(f"Paddle版本: {paddle.__version__}")
-print(f"GPU可用: {paddle.is_compiled_with_cuda()}")
-print(f"GPU数量: {paddle.device.cuda.device_count()}")
+import paddleocr
 
-try:
-    import transformers
-    print(f"Transformers版本: {transformers.__version__}")
-except ImportError:
-    print("Transformers 未安裝")
+is_cpu_build = not paddle.is_compiled_with_cuda()
+
+print(f"PaddleOCR 版本: {paddleocr.__version__}")
+print(f"PaddlePaddle 版本: {paddle.__version__}")
+print(f"目前裝置: {paddle.device.get_device()}")
+print(f"純 CPU 套件: {is_cpu_build}")
+
+if not is_cpu_build:
+    raise SystemExit("偵測到非 CPU 版 PaddlePaddle，請依部署文件重建 .venv。")

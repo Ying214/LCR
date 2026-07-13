@@ -7,6 +7,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
@@ -33,7 +34,7 @@ for folder in (UPLOAD_DIR, JSON_DIR, IMAGE_DIR, OCR_DIR):
 
 ocr = PaddleOCR(
     ocr_version="PP-OCRv5",
-    device="gpu:0",
+    device="cpu",
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
     use_textline_orientation=False,
@@ -271,6 +272,12 @@ def health() -> dict[str, str]:
 
 @app.post("/ocr")
 async def run_ocr(file: UploadFile = File(...)):
+    request_started = perf_counter()
+    logger.info(
+        "OCR request start: time=%s filename=%s",
+        datetime.now().isoformat(timespec="milliseconds"),
+        file.filename,
+    )
     image_bytes = await file.read()
     if not image_bytes:
         return JSONResponse({"message": "上傳檔案為空。"}, status_code=400)
@@ -292,14 +299,30 @@ async def run_ocr(file: UploadFile = File(...)):
 
     img_array = np.array(image)
 
+    predict_started = perf_counter()
     try:
         prediction_results = ocr.predict(img_array)
     except Exception as error:
+        predict_elapsed_ms = (perf_counter() - predict_started) * 1000
+        total_elapsed_ms = (perf_counter() - request_started) * 1000
+        logger.exception(
+            "OCR predict failed: filename=%s predict_ms=%.1f total_ms=%.1f",
+            file.filename,
+            predict_elapsed_ms,
+            total_elapsed_ms,
+        )
         return JSONResponse(
             {"message": "OCR 執行失敗。", "details": str(error)},
             status_code=500,
         )
+    predict_elapsed_ms = (perf_counter() - predict_started) * 1000
+    logger.info(
+        "OCR predict complete: filename=%s predict_ms=%.1f",
+        file.filename,
+        predict_elapsed_ms,
+    )
 
+    processing_started = perf_counter()
     response_results: list[dict[str, Any]] = []
     merged_lines: list[dict[str, Any]] = []
     merged_scores: list[float] = []
@@ -355,7 +378,7 @@ async def run_ocr(file: UploadFile = File(...)):
         merged_lines.extend(lines)
         merged_scores.extend(numeric_scores)
 
-    return JSONResponse(
+    response = JSONResponse(
         {
             "filename": file.filename,
             "saved_upload_path": str(upload_path),
@@ -383,3 +406,18 @@ async def run_ocr(file: UploadFile = File(...)):
             },
         }
     )
+    processing_elapsed_ms = (perf_counter() - processing_started) * 1000
+    total_elapsed_ms = (perf_counter() - request_started) * 1000
+    logger.info(
+        "OCR JSON/image processing complete: filename=%s processing_ms=%.1f",
+        file.filename,
+        processing_elapsed_ms,
+    )
+    logger.info(
+        "OCR request complete: filename=%s predict_ms=%.1f processing_ms=%.1f total_ms=%.1f",
+        file.filename,
+        predict_elapsed_ms,
+        processing_elapsed_ms,
+        total_elapsed_ms,
+    )
+    return response

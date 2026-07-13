@@ -21,6 +21,7 @@ function isOcrTrackingEnabled(): boolean {
 }
 
 export async function POST(request: Request) {
+  const requestStartedAt = Date.now();
   const formData = await request.formData();
   const file = formData.get("file");
 
@@ -35,6 +36,12 @@ export async function POST(request: Request) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+  console.info("[ocr-proxy] request start", {
+    filename: file.name,
+    upstreamUrl: `${baseUrl}/ocr`,
+    timeoutMs,
+  });
+
   try {
     const upstreamResponse = await fetch(`${baseUrl}/ocr`, {
       method: "POST",
@@ -43,6 +50,11 @@ export async function POST(request: Request) {
     });
 
     const rawBody = await upstreamResponse.text();
+    console.info("[ocr-proxy] response received", {
+      filename: file.name,
+      status: upstreamResponse.status,
+      elapsedMs: Date.now() - requestStartedAt,
+    });
     const parsedBody = parseJsonSafely(rawBody);
 
     if (!upstreamResponse.ok) {
@@ -68,11 +80,21 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      console.error("[ocr-proxy] timeout in Next.js API route AbortController", {
+        filename: file.name,
+        timeoutMs,
+        elapsedMs: Date.now() - requestStartedAt,
+      });
       return NextResponse.json<OcrErrorResponse>(
         { message: `OCR service 請求逾時（${timeoutMs}ms）。` },
         { status: 504 },
       );
     }
+    console.error("[ocr-proxy] upstream request failed", {
+      filename: file.name,
+      elapsedMs: Date.now() - requestStartedAt,
+      error,
+    });
     return NextResponse.json<OcrErrorResponse>(
       { message: "無法連線 OCR service，請確認服務是否啟動。" },
       { status: 502 },

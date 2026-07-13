@@ -27,7 +27,7 @@ const LOCAL_ALLOWED_ROOTS = [
   path.resolve(process.cwd(), "servers", "ocr", "data", "json"),
 ];
 
-const DOCKER_ROOT_MAPPINGS: Array<{ prefix: string; localRoot: string }> = [
+const LEGACY_APP_ROOT_MAPPINGS: Array<{ prefix: string; localRoot: string }> = [
   { prefix: "/app/data/ocr/", localRoot: LOCAL_ALLOWED_ROOTS[0] },
   { prefix: "/app/data/uploads/", localRoot: LOCAL_ALLOWED_ROOTS[1] },
   { prefix: "/app/data/json/", localRoot: LOCAL_ALLOWED_ROOTS[2] },
@@ -60,7 +60,7 @@ function resolveRawPath(rawPath: string): string | null {
   }
 
   const slashNormalized = trimmed.replace(/\\/g, "/");
-  for (const mapping of DOCKER_ROOT_MAPPINGS) {
+  for (const mapping of LEGACY_APP_ROOT_MAPPINGS) {
     if (slashNormalized.startsWith(mapping.prefix)) {
       const relativePath = slashNormalized.slice(mapping.prefix.length);
       if (!relativePath) {
@@ -241,4 +241,3 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, reason: "raw_parse_error" }, { status: 500 });
   }
 }
-

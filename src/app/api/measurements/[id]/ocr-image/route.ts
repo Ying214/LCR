@@ -16,7 +16,7 @@ const ALLOWED_EXTENSIONS = new Map<string, string>([
   [".webp", "image/webp"],
 ]);
 const OCR_DATA_ROOT = path.resolve(process.cwd(), "servers", "ocr", "data", "ocr");
-const DOCKER_OCR_PREFIX = "/app/data/ocr/";
+const LEGACY_APP_OCR_PREFIX = "/app/data/ocr/";
 
 type OcrMetadataLike = {
   originalImagePath?: string | null;
@@ -35,8 +35,8 @@ function resolveOcrMetadataPath(rawPath: string): string | null {
   }
 
   const slashNormalized = trimmed.replace(/\\/g, "/");
-  if (slashNormalized.startsWith(DOCKER_OCR_PREFIX)) {
-    const relativePath = slashNormalized.slice(DOCKER_OCR_PREFIX.length);
+  if (slashNormalized.startsWith(LEGACY_APP_OCR_PREFIX)) {
+    const relativePath = slashNormalized.slice(LEGACY_APP_OCR_PREFIX.length);
     if (!relativePath) {
       return null;
     }
