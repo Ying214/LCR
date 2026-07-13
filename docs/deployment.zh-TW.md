@@ -51,14 +51,38 @@ Copy-Item .env.example .env
 
 ```powershell
 python -m venv .venv
-& .\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 ```
 
-如果 PowerShell 阻擋 `Activate.ps1`，先執行：
+`python -m venv .venv` 執行成功後，虛擬環境就已建立。如果啟用時出現「這個系統上已停用指令碼執行」，原因是 PowerShell Execution Policy 阻擋 `Activate.ps1`，不是虛擬環境建立失敗。
+
+建議設定目前 Windows 使用者的執行原則：
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+出現確認提示時輸入 `Y`，再啟用虛擬環境：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+這項設定只影響目前 Windows 使用者，之後開啟新的 PowerShell 視窗仍然有效。
+
+如果不想變更使用者設定，可以只對目前 PowerShell 視窗暫時放行：
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-& .\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
+```
+
+關閉該 PowerShell 視窗後，暫時設定就會失效。
+
+成功啟用後，命令列前方會出現 `(.venv)`，例如：
+
+```text
+(.venv) PS C:\...\LCR>
 ```
 
 #### 5. 安裝 PaddlePaddle CPU、PaddleOCR 與 API 套件
@@ -314,14 +338,7 @@ Python 請使用 64-bit 3.12。
 
 ### `Activate.ps1` 被禁止執行
 
-只對目前 PowerShell 視窗暫時放行：
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-& .\.venv\Scripts\Activate.ps1
-```
-
-關閉視窗後，這項暫時設定就會失效。
+這代表 PowerShell Execution Policy 阻擋啟用腳本，不是 `.venv` 建立失敗。請依第一章「建立 Python 虛擬環境」選擇目前使用者設定或暫時設定，再重新執行 `Activate.ps1`。
 
 ### 缺少 DLL 或 native library 無法載入
 
